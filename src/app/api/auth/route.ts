@@ -51,7 +51,7 @@ export async function POST(req: Request) {
   } catch (error: any) {
     console.error('Auth error:', error);
     return NextResponse.json(
-      { error: 'Gagal terhubung ke database PostgreSQL. Pastikan DATABASE_URL di Vercel sudah benar: ' + (error?.message || '') },
+      { error: 'Layanan autentikasi sedang sibuk. Pastikan DATABASE_URL sudah diatur di Vercel.' },
       { status: 500 }
     );
   }

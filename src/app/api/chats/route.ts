@@ -17,8 +17,8 @@ export async function GET(req: Request) {
 
     const chats = await prisma.chat.findMany({
       where: userId ? { userId } : {},
-      orderBy: { updatedAt: 'desc' },
-      select: { id: true, title: true, model: true, updatedAt: true },
+      orderBy: [{ isPinned: 'desc' }, { updatedAt: 'desc' }],
+      select: { id: true, title: true, model: true, isPinned: true, updatedAt: true },
     });
     return NextResponse.json(chats);
   } catch (error) {
@@ -27,13 +27,34 @@ export async function GET(req: Request) {
   }
 }
 
+export async function PATCH(req: Request) {
+  try {
+    const { chatId, isPinned, title } = await req.json();
+    if (!chatId) return NextResponse.json({ error: 'Chat ID diperlukan' }, { status: 400 });
+
+    const updated = await prisma.chat.update({
+      where: { id: chatId },
+      data: {
+        ...(typeof isPinned === 'boolean' ? { isPinned } : {}),
+        ...(title ? { title } : {}),
+      },
+    });
+    return NextResponse.json(updated);
+  } catch (error) {
+    return NextResponse.json({ error: 'Gagal memperbarui chat' }, { status: 500 });
+  }
+}
+
 export async function DELETE(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const chatId = searchParams.get('id');
+    const userId = searchParams.get('userId');
 
     if (chatId) {
       await prisma.chat.delete({ where: { id: chatId } });
+    } else if (userId) {
+      await prisma.chat.deleteMany({ where: { userId } });
     }
     return NextResponse.json({ success: true });
   } catch (error) {
