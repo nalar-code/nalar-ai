@@ -15,6 +15,12 @@ import {
   Brain,
   Menu,
   X,
+  LogOut,
+  User as UserIcon,
+  Key,
+  AlertCircle,
+  Lock,
+  Mail,
 } from 'lucide-react';
 
 interface ChatHistory {
@@ -23,31 +29,75 @@ interface ChatHistory {
   model: string;
 }
 
+interface UserProfile {
+  id: string;
+  name: string;
+  email: string;
+}
+
 export default function NalarApp() {
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
+  const [authName, setAuthName] = useState('');
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
+
   const [chatList, setChatList] = useState<ChatHistory[]>([]);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState<string>('nalar-kilat');
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(true);
+  const [chatError, setChatError] = useState<string | null>(null);
+
+  const [showApiModal, setShowApiModal] = useState(false);
+  const [customApiKey, setCustomApiKey] = useState('');
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const savedUser = localStorage.getItem('nalar_user');
+    const savedKey = localStorage.getItem('nalar_custom_api_key');
+    if (savedUser) {
+      try {
+        setUser(JSON.parse(savedUser));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    if (savedKey) setCustomApiKey(savedKey);
+  }, []);
 
   const { messages, input, handleInputChange, handleSubmit, isLoading, setMessages } = useChat({
     api: '/api/chat',
     body: {
       chatId: activeChatId,
       selectedModel,
+      userId: user?.id,
+      customApiKey: customApiKey || undefined,
     },
     onResponse(response) {
+      setChatError(null);
       const newChatId = response.headers.get('X-Chat-Id');
       if (newChatId && !activeChatId) {
         setActiveChatId(newChatId);
-        fetchChatList();
+        fetchChatList(user?.id);
+      }
+    },
+    onError(err) {
+      try {
+        const parsed = JSON.parse(err.message);
+        setChatError(parsed.error || err.message);
+      } catch {
+        setChatError(err.message || 'Gagal memproses chat. Periksa API Key OpenAI Anda.');
       }
     },
   });
 
-  const fetchChatList = async () => {
+  const fetchChatList = async (uid?: string) => {
     try {
-      const res = await fetch('/api/chats');
+      const url = uid ? `/api/chats?userId=${uid}` : '/api/chats';
+      const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
         setChatList(data);
@@ -58,15 +108,55 @@ export default function NalarApp() {
   };
 
   useEffect(() => {
-    fetchChatList();
-  }, []);
+    if (user) {
+      fetchChatList(user.id);
+    }
+  }, [user]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  const handleAuthSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError('');
+    setAuthLoading(true);
+    try {
+      const res = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: authMode,
+          name: authName,
+          email: authEmail,
+          password: authPassword,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setAuthError(data.error || 'Terjadi kesalahan saat autentikasi.');
+      } else {
+        setUser(data.user);
+        localStorage.setItem('nalar_user', JSON.stringify(data.user));
+      }
+    } catch (err) {
+      setAuthError('Gagal menghubungi server autentikasi.');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('nalar_user');
+    setUser(null);
+    setMessages([]);
+    setActiveChatId(null);
+    setChatList([]);
+  };
+
   const loadChat = async (id: string) => {
     setActiveChatId(id);
+    setChatError(null);
     const res = await fetch(`/api/chats?id=${id}`);
     if (res.ok) {
       const data = await res.json();
@@ -86,14 +176,130 @@ export default function NalarApp() {
   const startNewChat = () => {
     setActiveChatId(null);
     setMessages([]);
+    setChatError(null);
   };
 
   const deleteChat = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     await fetch(`/api/chats?id=${id}`, { method: 'DELETE' });
     if (activeChatId === id) startNewChat();
-    fetchChatList();
+    fetchChatList(user?.id);
   };
+
+  const saveCustomKey = () => {
+    localStorage.setItem('nalar_custom_api_key', customApiKey.trim());
+    setShowApiModal(false);
+  };
+
+  // HALAMAN LOGIN & SIGN UP
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-[#0e1117] text-gray-100 flex items-center justify-center p-4">
+        <div className="w-full max-w-md bg-[#161b22] border border-gray-800 rounded-2xl p-8 shadow-2xl">
+          <div className="flex flex-col items-center text-center mb-6">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-indigo-600 to-cyan-400 flex items-center justify-center font-bold text-2xl text-white shadow-lg mb-3">
+              N
+            </div>
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
+              Selamat Datang di NALAR AI
+            </h1>
+            <p className="text-xs text-gray-400 mt-1">
+              Platform Kecerdasan Buatan Generasi Baru
+            </p>
+          </div>
+
+          <div className="flex bg-[#0e1117] p-1 rounded-xl mb-6 border border-gray-800">
+            <button
+              type="button"
+              onClick={() => { setAuthMode('login'); setAuthError(''); }}
+              className={`flex-1 py-2 text-xs font-semibold rounded-lg transition ${
+                authMode === 'login' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Masuk (Login)
+            </button>
+            <button
+              type="button"
+              onClick={() => { setAuthMode('signup'); setAuthError(''); }}
+              className={`flex-1 py-2 text-xs font-semibold rounded-lg transition ${
+                authMode === 'signup' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Daftar Akun (Sign Up)
+            </button>
+          </div>
+
+          {authError && (
+            <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs flex items-center gap-2">
+              <AlertCircle size={16} className="shrink-0" />
+              <span>{authError}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleAuthSubmit} className="space-y-4">
+            {authMode === 'signup' && (
+              <div>
+                <label className="block text-xs text-gray-400 mb-1.5">Nama Lengkap</label>
+                <div className="relative">
+                  <UserIcon size={16} className="absolute left-3.5 top-3 text-gray-500" />
+                  <input
+                    type="text"
+                    required
+                    value={authName}
+                    onChange={(e) => setAuthName(e.target.value)}
+                    placeholder="Masukkan nama Anda"
+                    className="w-full bg-[#0e1117] border border-gray-800 focus:border-indigo-500 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white focus:outline-none"
+                  />
+                </div>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-xs text-gray-400 mb-1.5">Alamat Email</label>
+              <div className="relative">
+                <Mail size={16} className="absolute left-3.5 top-3 text-gray-500" />
+                <input
+                  type="email"
+                  required
+                  value={authEmail}
+                  onChange={(e) => setAuthEmail(e.target.value)}
+                  placeholder="nama@email.com"
+                  className="w-full bg-[#0e1117] border border-gray-800 focus:border-indigo-500 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs text-gray-400 mb-1.5">Kata Sandi</label>
+              <div className="relative">
+                <Lock size={16} className="absolute left-3.5 top-3 text-gray-500" />
+                <input
+                  type="password"
+                  required
+                  value={authPassword}
+                  onChange={(e) => setAuthPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full bg-[#0e1117] border border-gray-800 focus:border-indigo-500 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={authLoading}
+              className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-semibold py-2.5 rounded-xl transition shadow-lg mt-2"
+            >
+              {authLoading
+                ? 'Memproses...'
+                : authMode === 'login'
+                ? 'Masuk ke NALAR'
+                : 'Buat Akun NALAR'}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-[#0e1117] text-gray-100 font-sans overflow-hidden">
@@ -153,9 +359,29 @@ export default function NalarApp() {
           ))}
         </div>
 
-        <div className="p-4 border-t border-gray-800 text-xs text-gray-500 flex items-center justify-between">
-          <span>NALAR Cloud v2.0</span>
-          <span className="text-emerald-400">● 24/7 Aktif</span>
+        {/* PROFIL USER & TOMBOL LOGOUT */}
+        <div className="p-3 border-t border-gray-800 space-y-2">
+          <button
+            onClick={() => setShowApiModal(true)}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-gray-300 hover:bg-gray-800 transition"
+          >
+            <Key size={14} className="text-indigo-400" />
+            <span>Pengaturan OpenAI API Key</span>
+          </button>
+
+          <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-[#0e1117] border border-gray-800">
+            <div className="truncate">
+              <p className="text-xs font-semibold text-white truncate">{user.name}</p>
+              <p className="text-[11px] text-gray-500 truncate">{user.email}</p>
+            </div>
+            <button
+              onClick={handleLogout}
+              title="Keluar (Logout)"
+              className="p-1.5 text-gray-400 hover:text-red-400 rounded-lg transition"
+            >
+              <LogOut size={16} />
+            </button>
+          </div>
         </div>
       </aside>
 
@@ -205,16 +431,39 @@ export default function NalarApp() {
               </button>
             </div>
           </div>
+
+          <button
+            onClick={() => setShowApiModal(true)}
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-[#161b22] border border-gray-800 hover:border-indigo-500 text-gray-300 transition"
+          >
+            <Key size={13} className="text-indigo-400" />
+            <span>API Key</span>
+          </button>
         </header>
 
         <div className="flex-1 overflow-y-auto px-4 md:px-20 py-8 space-y-6">
+          {chatError && (
+            <div className="max-w-4xl mx-auto p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <AlertCircle size={18} className="shrink-0 text-red-400" />
+                <span>{chatError}</span>
+              </div>
+              <button
+                onClick={() => setShowApiModal(true)}
+                className="shrink-0 px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-white font-medium"
+              >
+                Atur API Key
+              </button>
+            </div>
+          )}
+
           {messages.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center max-w-2xl mx-auto">
               <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-indigo-600 to-cyan-400 flex items-center justify-center shadow-2xl mb-6">
                 <Cpu size={34} className="text-white" />
               </div>
               <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-indigo-400 via-cyan-300 to-white bg-clip-text text-transparent mb-3">
-                Halo, mari berpikir bersama NALAR.
+                Halo {user.name}, mari berpikir bersama NALAR.
               </h1>
               <p className="text-gray-400 text-sm md:text-base mb-8">
                 Asisten AI cerdas untuk analisis data, pemrograman, penulisan strategis, dan pemecahan masalah kompleks.
@@ -286,11 +535,41 @@ export default function NalarApp() {
               <Send size={18} />
             </button>
           </form>
-          <p className="text-center text-[11px] text-gray-500 mt-2">
-            NALAR AI Cloud Edition • Berjalan 24 Jam Tanpa Beban PC
-          </p>
         </div>
       </main>
+
+      {/* MODAL PENGATURAN OPENAI API KEY */}
+      {showApiModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-[#161b22] border border-gray-800 rounded-2xl max-w-md w-full p-6 shadow-2xl">
+            <h3 className="text-lg font-bold text-white mb-2">Pengaturan OpenAI API Key</h3>
+            <p className="text-xs text-gray-400 mb-4">
+              Jika Anda belum mengatur <code className="text-indigo-400">OPENAI_API_KEY</code> di Vercel Environment Variables, Anda bisa memasukkan API Key OpenAI Anda langsung di sini agar chat langsung aktif.
+            </p>
+            <input
+              type="password"
+              value={customApiKey}
+              onChange={(e) => setCustomApiKey(e.target.value)}
+              placeholder="sk-proj-xxxxxxxxxxxxxxxxxxxxxxxx"
+              className="w-full bg-[#0e1117] border border-gray-800 focus:border-indigo-500 rounded-xl px-4 py-2.5 text-sm text-white mb-4 focus:outline-none"
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowApiModal(false)}
+                className="px-4 py-2 rounded-xl text-xs text-gray-400 hover:text-white"
+              >
+                Batal
+              </button>
+              <button
+                onClick={saveCustomKey}
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white"
+              >
+                Simpan API Key
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
