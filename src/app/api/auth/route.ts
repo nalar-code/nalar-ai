@@ -20,7 +20,7 @@ export async function POST(req: Request) {
     if (action === 'signup') {
       const existing = await prisma.user.findUnique({ where: { email: cleanEmail } });
       if (existing) {
-        return NextResponse.json({ error: 'Email sudah terdaftar. Silakan masuk (Login).' }, { status: 400 });
+        return NextResponse.json({ error: 'Email sudah terdaftar. Silakan masuk.' }, { status: 400 });
       }
 
       const newUser = await prisma.user.create({
@@ -39,7 +39,7 @@ export async function POST(req: Request) {
     if (action === 'login') {
       const user = await prisma.user.findUnique({ where: { email: cleanEmail } });
       if (!user || user.passwordHash !== hashed) {
-        return NextResponse.json({ error: 'Email atau kata sandi salah.' }, { status: 401 });
+        return NextResponse.json({ error: 'Kredensial email atau kata sandi tidak sesuai.' }, { status: 401 });
       }
 
       return NextResponse.json({
@@ -51,7 +51,7 @@ export async function POST(req: Request) {
   } catch (error: any) {
     console.error('Auth error:', error);
     return NextResponse.json(
-      { error: 'Layanan autentikasi sedang sibuk. Pastikan DATABASE_URL sudah diatur di Vercel.' },
+      { error: 'Layanan autentikasi sedang sibuk. Pastikan koneksi database aktif.' },
       { status: 500 }
     );
   }

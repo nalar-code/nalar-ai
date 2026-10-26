@@ -2,22 +2,24 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  background-color: #131314;
-  color: #e3e3e3;
+@layer base {
+  body {
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    -webkit-font-smoothing: antialiased;
+  }
 }
 
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #333537;
+  background: rgba(161, 161, 170, 0.3);
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #444746;
+  background: rgba(161, 161, 170, 0.5);
 }

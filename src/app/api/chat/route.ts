@@ -4,7 +4,6 @@ import { prisma } from '@/lib/prisma';
 
 export const maxDuration = 60;
 
-// Pemetaan Model NALAR (100% Server-Side)
 const NALAR_MODELS: Record<string, string> = {
   'nalar-flash': 'google/gemini-2.0-flash-001',
   'nalar-advanced': 'openai/gpt-4o',
@@ -12,24 +11,23 @@ const NALAR_MODELS: Record<string, string> = {
   'nalar-free': 'meta-llama/llama-3.3-70b-instruct:free',
 };
 
-const SYSTEM_PROMPT = `Kamu adalah NALAR, asisten kecerdasan buatan (AI) canggih yang cerdas, analitis, kreatif, dan solutif.
-Identitasmu:
+const SYSTEM_PROMPT = `Kamu adalah NALAR, sistem asisten kerja cerdas kelas enterprise.
+Identitas & Gaya Komunikasi:
 - Nama: NALAR
-- Karakter: Logis, terstruktur, hangat, dan selalu memberikan jawaban yang akurat serta mendalam seperti asisten kelas dunia.
-- Aturan Penting: Jangan pernah menyebut dirimu sebagai ChatGPT, Gemini, DeepSeek, Llama, atau buatan pihak lain. Jika ditanya siapa kamu, jawablah bahwa kamu adalah NALAR, asisten AI generasi baru yang dirancang untuk membantu manusia berpikir, berkarya, dan bekerja lebih cerdas.
-- Gunakan format Markdown yang rapi (poin-poin, tabel, subjudul tebal, atau blok kode) agar nyaman dibaca.`;
+- Karakter: Presisi, objektif, terstruktur, lugas, dan solutif.
+- Aturan Penting: Jangan pernah menyebut dirimu sebagai ChatGPT, Gemini, DeepSeek, Llama, atau buatan pihak ketiga. Jika ditanya siapa kamu, jawablah bahwa kamu adalah NALAR, platform AI kerja profesional.
+- Gunakan tata letak Markdown yang bersih (subjudul ringkas, poin-poin terstruktur, tabel data, dan blok kode standar industri).`;
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { messages, chatId, selectedModel = 'nalar-flash', userId, personaInstruction } = body;
 
-    // 100% AMAN DI SERVER: Hanya membaca dari Environment Variables Vercel
     const apiKey = process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY;
     if (!apiKey) {
       return new Response(
         JSON.stringify({
-          error: 'Konfigurasi server AI belum aktif. Pastikan OPENROUTER_API_KEY atau OPENAI_API_KEY sudah ditambahkan di Vercel Environment Variables.',
+          error: 'Konfigurasi server belum lengkap. Hubungi administrator workspace.',
         }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       );
@@ -43,7 +41,7 @@ export async function POST(req: Request) {
         const textContent =
           typeof lastUserMessage.content === 'string'
             ? lastUserMessage.content
-            : 'Percakapan NALAR';
+            : 'Dokumen & Analisis';
         const titlePreview = textContent.slice(0, 48) + (textContent.length > 48 ? '...' : '');
         const newChat = await prisma.chat.create({
           data: {
@@ -79,7 +77,7 @@ export async function POST(req: Request) {
       headers: isOpenRouter
         ? {
             'HTTP-Referer': 'https://nalar-ai-two.vercel.app',
-            'X-Title': 'NALAR AI',
+            'X-Title': 'NALAR Workspace',
           }
         : undefined,
     });
@@ -91,7 +89,7 @@ export async function POST(req: Request) {
       : 'gpt-4o-mini';
 
     const finalSystemPrompt = personaInstruction
-      ? `${SYSTEM_PROMPT}\n\nInstruksi Khusus Gem/Persona Aktif:\n${personaInstruction}`
+      ? `${SYSTEM_PROMPT}\n\nKonteks Modul Spesialis Aktif:\n${personaInstruction}`
       : SYSTEM_PROMPT;
 
     const result = streamText({
@@ -124,7 +122,7 @@ export async function POST(req: Request) {
     console.error('NALAR Server Error:', error);
     return new Response(
       JSON.stringify({
-        error: 'Maaf, NALAR sedang mengalami kepadatan lalu lintas jaringan. Silakan coba kirim ulang pesan Anda.',
+        error: 'Permintaan tidak dapat diselesaikan saat ini. Silakan coba kirim ulang.',
       }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     );

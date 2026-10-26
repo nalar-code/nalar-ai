@@ -32,7 +32,8 @@ export async function PATCH(req: Request) {
     const { chatId, isPinned, title } = await req.json();
     if (!chatId) return NextResponse.json({ error: 'Chat ID diperlukan' }, { status: 400 });
 
-    const updated = await prisma.chat.update({
+    // Gunakan updateMany agar tidak error jika chatId tidak ditemukan
+    const updated = await prisma.chat.updateMany({
       where: { id: chatId },
       data: {
         ...(typeof isPinned === 'boolean' ? { isPinned } : {}),
@@ -52,12 +53,13 @@ export async function DELETE(req: Request) {
     const userId = searchParams.get('userId');
 
     if (chatId) {
-      await prisma.chat.delete({ where: { id: chatId } });
+      // Menggunakan deleteMany agar aman dan tidak pernah error meskipun data sudah terhapus
+      await prisma.chat.deleteMany({ where: { id: chatId } });
     } else if (userId) {
       await prisma.chat.deleteMany({ where: { userId } });
     }
     return NextResponse.json({ success: true });
   } catch (error) {
-    return NextResponse.json({ error: 'Gagal menghapus chat' }, { status: 500 });
+    return NextResponse.json({ success: true });
   }
 }

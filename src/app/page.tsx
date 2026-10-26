@@ -5,12 +5,11 @@ import { useChat } from 'ai/react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
-  Sparkles,
-  Send,
+  ArrowUp,
   Plus,
   MessageSquare,
   Trash2,
-  Menu,
+  PanelLeft,
   LogOut,
   User as UserIcon,
   AlertCircle,
@@ -20,21 +19,23 @@ import {
   Pin,
   History,
   Settings,
-  Compass,
-  Code,
-  PenTool,
-  Lightbulb,
+  Layers,
+  Code2,
+  FileSpreadsheet,
+  PenLine,
   FileText,
   Mic,
   Copy,
   Check,
-  ThumbsUp,
-  ThumbsDown,
   RotateCcw,
   Sun,
   Moon,
-  CheckCircle2,
+  Search,
+  Paperclip,
   X,
+  ShieldCheck,
+  Terminal,
+  Briefcase,
 } from 'lucide-react';
 
 interface ChatHistory {
@@ -51,78 +52,76 @@ interface UserProfile {
   email: string;
 }
 
-interface GemPersona {
+interface WorkspaceModule {
   id: string;
   name: string;
+  role: string;
   desc: string;
-  icon: string;
   instruction: string;
-  color: string;
 }
 
-const DEFAULT_GEMS: GemPersona[] = [
+const WORKSPACE_MODULES: WorkspaceModule[] = [
   {
-    id: 'default',
-    name: 'NALAR Utama',
-    desc: 'Asisten serbabisa untuk segala kebutuhan harian, analisis, dan riset.',
-    icon: '✨',
+    id: 'general',
+    name: 'General Assistant',
+    role: 'Core Workspace',
+    desc: 'Riset harian, sintesis dokumen, dan pemecahan masalah operasional.',
     instruction: '',
-    color: 'from-blue-500 to-purple-500',
   },
   {
-    id: 'coding-partner',
-    name: 'Pakar Koding',
-    desc: 'Spesialis arsitektur software, debugging kode, SQL, dan pengembangan Full-Stack.',
-    icon: '💻',
-    instruction: 'Kamu berperan sebagai Senior Principal Software Engineer. Berikan kode yang bersih, efisien, aman, dan jelaskan arsitekturnya secara terstruktur.',
-    color: 'from-emerald-500 to-cyan-500',
+    id: 'engineering',
+    name: 'Software Architecture',
+    role: 'Engineering',
+    desc: 'Review kode produksi, desain sistem, optimasi SQL, dan dokumentasi teknis.',
+    instruction:
+      'Kamu bertindak sebagai Principal Software Architect. Tulis kode produksi yang modular, type-safe, aman, dan jelaskan trade-off teknis secara ringkas.',
   },
   {
-    id: 'brainstormer',
-    name: 'Rekan Ide & Bisnis',
-    desc: 'Teman diskusi strategi bisnis, pemasaran, inovasi produk, dan ide kreatif.',
-    icon: '💡',
-    instruction: 'Kamu berperan sebagai Konsultan Strategi Bisnis & Inovasi. Berikan ide-ide segar, analisis SWOT, dan langkah eksekusi yang praktis.',
-    color: 'from-amber-500 to-orange-500',
+    id: 'strategy',
+    name: 'Business & Strategy',
+    role: 'Executive',
+    desc: 'Analisis pasar, penyusunan proposal B2B, metrik finansial SaaS, dan GTM.',
+    instruction:
+      'Kamu bertindak sebagai VP of Strategy & Operations. Gunakan kerangka kerja bisnis yang terukur, objektif, dan berorientasi pada eksekusi.',
   },
   {
-    id: 'editor-tulisan',
-    name: 'Editor & Penulis',
-    desc: 'Merangkum dokumen, menulis esai, copywriting, dan memperbaiki tata bahasa.',
-    icon: '✍️',
-    instruction: 'Kamu berperan sebagai Editor Profesional dan Penulis Ahli. Gunakan diksi yang memikat, tata bahasa yang sempurna, dan alur tulisan yang jernih.',
-    color: 'from-pink-500 to-rose-500',
+    id: 'editorial',
+    name: 'Technical & Copy Editor',
+    role: 'Communications',
+    desc: 'Penyuntingan laporan eksekutif, dokumentasi produk, dan komunikasi korporat.',
+    instruction:
+      'Kamu bertindak sebagai Managing Editor. Pastikan setiap tulisan memiliki struktur logis, nada profesional, dan tata bahasa yang presisi.',
   },
 ];
 
 const MODEL_OPTIONS = [
   {
     id: 'nalar-flash',
-    name: 'NALAR 2.0 Flash',
-    badge: 'Cepat & Cerdas',
-    desc: 'Terbaik untuk tugas sehari-hari dan respons instan',
+    name: 'Nalar 2.0 Flash',
+    tier: 'Standard',
+    desc: 'Latensi rendah untuk operasional harian',
   },
   {
     id: 'nalar-advanced',
-    name: 'NALAR Advanced',
-    badge: 'Pro',
-    desc: 'Penalaran kompleks, koding tingkat lanjut, dan analisis mendalam',
+    name: 'Nalar Pro',
+    tier: 'Enterprise',
+    desc: 'Kapasitas analitik penuh & pemrosesan kode kompleks',
   },
   {
     id: 'nalar-reasoning',
-    name: 'NALAR DeepThink',
-    badge: 'Logika R1',
-    desc: 'Khusus matematika, algoritma, dan pemecahan masalah berlapis',
+    name: 'Nalar R1 Reasoning',
+    tier: 'Deep Logic',
+    desc: 'Verifikasi algoritma, logika formal, dan matematika',
   },
   {
     id: 'nalar-free',
-    name: 'NALAR Lite',
-    badge: 'Ekonomis',
-    desc: 'Model ringan Llama 3.3 70B untuk percakapan santai',
+    name: 'Nalar Lite',
+    tier: 'Economy',
+    desc: 'Model efisien untuk draf cepat',
   },
 ];
 
-export default function NalarGeminiApp() {
+export default function NalarSaaSWorkspace() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [authName, setAuthName] = useState('');
@@ -131,16 +130,17 @@ export default function NalarGeminiApp() {
   const [authError, setAuthError] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
 
-  const [sidebarExpanded, setSidebarExpanded] = useState<boolean>(true);
-  const [activeView, setActiveView] = useState<'chat' | 'gems' | 'activity' | 'settings'>('chat');
-  const [darkMode, setDarkMode] = useState<boolean>(true);
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(true);
+  const [activeView, setActiveView] = useState<'chat' | 'modules' | 'logs' | 'settings'>('chat');
+  const [darkMode, setDarkMode] = useState<boolean>(false); // Default Light Mode bersih ala SaaS modern, bisa diganti Dark
   const [modelMenuOpen, setModelMenuOpen] = useState<boolean>(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState<boolean>(false);
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   const [chatList, setChatList] = useState<ChatHistory[]>([]);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState<string>('nalar-flash');
-  const [activeGem, setActiveGem] = useState<GemPersona>(DEFAULT_GEMS[0]);
+  const [activeModule, setActiveModule] = useState<WorkspaceModule>(WORKSPACE_MODULES[0]);
   const [chatError, setChatError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [attachmentName, setAttachmentName] = useState<string | null>(null);
@@ -151,9 +151,7 @@ export default function NalarGeminiApp() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    // Bersihkan sisa kunci lokal dari versi lama jika ada
     localStorage.removeItem('nalar_custom_api_key');
-
     const savedUser = localStorage.getItem('nalar_user');
     const savedTheme = localStorage.getItem('nalar_theme');
     if (savedUser) {
@@ -163,7 +161,14 @@ export default function NalarGeminiApp() {
         console.error(e);
       }
     }
-    if (savedTheme === 'light') setDarkMode(false);
+    if (savedTheme === 'dark') {
+      setDarkMode(true);
+    } else if (savedTheme === 'light') {
+      setDarkMode(false);
+    } else {
+      // Default ke Dark Mode elegan jika user belum memilih
+      setDarkMode(true);
+    }
   }, []);
 
   const toggleTheme = () => {
@@ -178,7 +183,7 @@ export default function NalarGeminiApp() {
       chatId: activeChatId,
       selectedModel,
       userId: user?.id,
-      personaInstruction: activeGem.instruction,
+      personaInstruction: activeModule.instruction,
     },
     onResponse(response) {
       setChatError(null);
@@ -193,7 +198,7 @@ export default function NalarGeminiApp() {
         const parsed = JSON.parse(err.message);
         setChatError(parsed.error || err.message);
       } catch {
-        setChatError('Maaf, permintaan belum dapat diproses saat ini. Silakan coba lagi.');
+        setChatError('Permintaan belum dapat diproses. Silakan coba sesaat lagi.');
       }
     },
   });
@@ -238,13 +243,13 @@ export default function NalarGeminiApp() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setAuthError(data.error || 'Terjadi kesalahan saat autentikasi.');
+        setAuthError(data.error || 'Autentikasi gagal.');
       } else {
         setUser(data.user);
         localStorage.setItem('nalar_user', JSON.stringify(data.user));
       }
     } catch {
-      setAuthError('Gagal menghubungi server autentikasi.');
+      setAuthError('Gagal menghubungi layanan autentikasi.');
     } finally {
       setAuthLoading(false);
     }
@@ -333,7 +338,7 @@ export default function NalarGeminiApp() {
   const handleVoiceInput = () => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      alert('Browser Anda belum mendukung fitur suara langsung. Gunakan Google Chrome atau Edge.');
+      alert('Gunakan browser berbasis Chromium (Chrome/Edge) untuk dikte suara.');
       return;
     }
     const recognition = new SpeechRecognition();
@@ -352,7 +357,7 @@ export default function NalarGeminiApp() {
     if (!input.trim() && !attachmentName) return;
 
     if (attachmentName && attachmentContent) {
-      const combined = `[Lampiran File: ${attachmentName}]\n\`\`\`\n${attachmentContent}\n\`\`\`\n\n${input}`;
+      const combined = `[Dokumen: ${attachmentName}]\n\`\`\`\n${attachmentContent}\n\`\`\`\n\n${input}`;
       setInput(combined);
       setAttachmentName(null);
       setAttachmentContent('');
@@ -365,536 +370,766 @@ export default function NalarGeminiApp() {
   };
 
   const currentModelInfo = MODEL_OPTIONS.find((m) => m.id === selectedModel) || MODEL_OPTIONS[0];
-  const pinnedChats = chatList.filter((c) => c.isPinned);
-  const recentChats = chatList.filter((c) => !c.isPinned);
+  const filteredChats = chatList.filter((c) =>
+    c.title.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+  const pinnedChats = filteredChats.filter((c) => c.isPinned);
+  const recentChats = filteredChats.filter((c) => !c.isPinned);
 
-  // HALAMAN LOGIN & SIGN UP (Dilengkapi atribut autoComplete standar W3C)
+  // ============================================================================
+  // AUTH SCREEN: ENTERPRISE SAAS LOGIN (Vercel / Linear Style)
+  // ============================================================================
   if (!user) {
     return (
-      <div className="min-h-screen bg-[#131314] text-[#e3e3e3] flex items-center justify-center p-4 font-sans">
-        <div className="w-full max-w-md bg-[#1e1f20] border border-[#333537] rounded-3xl p-8 shadow-2xl">
-          <div className="flex flex-col items-center text-center mb-7">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-[#4285f4] via-[#9b72cb] to-[#d96570] flex items-center justify-center shadow-lg mb-4">
-              <Sparkles size={28} className="text-white" />
+      <div
+        className={`min-h-screen flex flex-col justify-center items-center px-4 font-sans transition-colors ${
+          darkMode ? 'bg-zinc-950 text-zinc-100' : 'bg-zinc-50 text-zinc-900'
+        }`}
+      >
+        <div className="w-full max-w-[400px]">
+          {/* Brand Header */}
+          <div className="flex flex-col items-center text-center mb-8">
+            <div
+              className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-lg mb-4 shadow-sm border ${
+                darkMode
+                  ? 'bg-zinc-900 border-zinc-800 text-zinc-100'
+                  : 'bg-zinc-900 border-zinc-900 text-white'
+              }`}
+            >
+              N
             </div>
-            <h1 className="text-2xl font-semibold tracking-tight text-white">
-              Masuk ke NALAR
+            <h1 className="text-xl font-semibold tracking-tight">
+              {authMode === 'login' ? 'Masuk ke Nalar Workspace' : 'Buat Akun Nalar Baru'}
             </h1>
-            <p className="text-sm text-[#c4c7c5] mt-1">
-              Asisten AI pribadi Anda untuk berpikir, berkarya, dan riset
+            <p className={`text-xs mt-1.5 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+              Platform kolaborasi & analitik AI untuk tim profesional
             </p>
           </div>
 
-          <div className="flex bg-[#131314] p-1 rounded-full mb-6 border border-[#333537]">
-            <button
-              type="button"
-              onClick={() => { setAuthMode('login'); setAuthError(''); }}
-              className={`flex-1 py-2 text-xs font-medium rounded-full transition ${
-                authMode === 'login' ? 'bg-[#333537] text-white' : 'text-[#c4c7c5] hover:text-white'
+          {/* Auth Card */}
+          <div
+            className={`rounded-xl border p-6 shadow-sm ${
+              darkMode ? 'bg-zinc-900/60 border-zinc-800/80' : 'bg-white border-zinc-200/90'
+            }`}
+          >
+            {/* Segmented Tab */}
+            <div
+              className={`grid grid-cols-2 p-1 rounded-lg mb-5 border text-xs font-medium ${
+                darkMode ? 'bg-zinc-950 border-zinc-800' : 'bg-zinc-100 border-zinc-200/70'
               }`}
             >
-              Masuk
-            </button>
-            <button
-              type="button"
-              onClick={() => { setAuthMode('signup'); setAuthError(''); }}
-              className={`flex-1 py-2 text-xs font-medium rounded-full transition ${
-                authMode === 'signup' ? 'bg-[#333537] text-white' : 'text-[#c4c7c5] hover:text-white'
-              }`}
-            >
-              Buat Akun
-            </button>
-          </div>
-
-          {authError && (
-            <div className="mb-4 p-3.5 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs flex items-center gap-2.5">
-              <AlertCircle size={16} className="shrink-0" />
-              <span>{authError}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode('login');
+                  setAuthError('');
+                }}
+                className={`py-1.5 rounded-md transition ${
+                  authMode === 'login'
+                    ? darkMode
+                      ? 'bg-zinc-800 text-zinc-100 shadow-sm'
+                      : 'bg-white text-zinc-900 shadow-sm'
+                    : darkMode
+                    ? 'text-zinc-400 hover:text-zinc-200'
+                    : 'text-zinc-500 hover:text-zinc-900'
+                }`}
+              >
+                Masuk
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode('signup');
+                  setAuthError('');
+                }}
+                className={`py-1.5 rounded-md transition ${
+                  authMode === 'signup'
+                    ? darkMode
+                      ? 'bg-zinc-800 text-zinc-100 shadow-sm'
+                      : 'bg-white text-zinc-900 shadow-sm'
+                    : darkMode
+                    ? 'text-zinc-400 hover:text-zinc-200'
+                    : 'text-zinc-500 hover:text-zinc-900'
+                }`}
+              >
+                Daftar Akun
+              </button>
             </div>
-          )}
 
-          <form onSubmit={handleAuthSubmit} className="space-y-4">
-            {authMode === 'signup' && (
-              <div>
-                <label htmlFor="name-input" className="block text-xs text-[#c4c7c5] mb-1.5 ml-1">Nama Lengkap</label>
-                <div className="relative">
-                  <UserIcon size={16} className="absolute left-4 top-3.5 text-[#8e918f]" />
-                  <input
-                    id="name-input"
-                    name="name"
-                    type="text"
-                    autoComplete="name"
-                    required
-                    value={authName}
-                    onChange={(e) => setAuthName(e.target.value)}
-                    placeholder="Nama Anda"
-                    className="w-full bg-[#131314] border border-[#333537] focus:border-[#a8c7fa] rounded-2xl pl-11 pr-4 py-3 text-sm text-white focus:outline-none transition"
-                  />
-                </div>
+            {authError && (
+              <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500 text-xs flex items-center gap-2">
+                <AlertCircle size={15} className="shrink-0" />
+                <span>{authError}</span>
               </div>
             )}
 
-            <div>
-              <label htmlFor="email-input" className="block text-xs text-[#c4c7c5] mb-1.5 ml-1">Email</label>
-              <div className="relative">
-                <Mail size={16} className="absolute left-4 top-3.5 text-[#8e918f]" />
-                <input
-                  id="email-input"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                  value={authEmail}
-                  onChange={(e) => setAuthEmail(e.target.value)}
-                  placeholder="nama@email.com"
-                  className="w-full bg-[#131314] border border-[#333537] focus:border-[#a8c7fa] rounded-2xl pl-11 pr-4 py-3 text-sm text-white focus:outline-none transition"
-                />
-              </div>
-            </div>
+            <form onSubmit={handleAuthSubmit} className="space-y-3.5">
+              {authMode === 'signup' && (
+                <div>
+                  <label
+                    htmlFor="name-input"
+                    className={`block text-xs font-medium mb-1.5 ${
+                      darkMode ? 'text-zinc-300' : 'text-zinc-700'
+                    }`}
+                  >
+                    Nama Lengkap
+                  </label>
+                  <div className="relative">
+                    <UserIcon
+                      size={15}
+                      className={`absolute left-3 top-2.5 ${
+                        darkMode ? 'text-zinc-500' : 'text-zinc-400'
+                      }`}
+                    />
+                    <input
+                      id="name-input"
+                      name="name"
+                      type="text"
+                      autoComplete="name"
+                      required
+                      value={authName}
+                      onChange={(e) => setAuthName(e.target.value)}
+                      placeholder="Nama Anda"
+                      className={`w-full rounded-lg pl-9 pr-3 py-2 text-sm border focus:outline-none transition ${
+                        darkMode
+                          ? 'bg-zinc-950 border-zinc-800 text-zinc-100 focus:border-zinc-600 placeholder-zinc-600'
+                          : 'bg-white border-zinc-300 text-zinc-900 focus:border-zinc-900 placeholder-zinc-400'
+                      }`}
+                    />
+                  </div>
+                </div>
+              )}
 
-            <div>
-              <label htmlFor="password-input" className="block text-xs text-[#c4c7c5] mb-1.5 ml-1">Kata Sandi</label>
-              <div className="relative">
-                <Lock size={16} className="absolute left-4 top-3.5 text-[#8e918f]" />
-                <input
-                  id="password-input"
-                  name="password"
-                  type="password"
-                  autoComplete={authMode === 'login' ? 'current-password' : 'new-password'}
-                  required
-                  value={authPassword}
-                  onChange={(e) => setAuthPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full bg-[#131314] border border-[#333537] focus:border-[#a8c7fa] rounded-2xl pl-11 pr-4 py-3 text-sm text-white focus:outline-none transition"
-                />
+              <div>
+                <label
+                  htmlFor="email-input"
+                  className={`block text-xs font-medium mb-1.5 ${
+                    darkMode ? 'text-zinc-300' : 'text-zinc-700'
+                  }`}
+                >
+                  Email Kerja / Pribadi
+                </label>
+                <div className="relative">
+                  <Mail
+                    size={15}
+                    className={`absolute left-3 top-2.5 ${
+                      darkMode ? 'text-zinc-500' : 'text-zinc-400'
+                    }`}
+                  />
+                  <input
+                    id="email-input"
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    required
+                    value={authEmail}
+                    onChange={(e) => setAuthEmail(e.target.value)}
+                    placeholder="nama@perusahaan.com"
+                    className={`w-full rounded-lg pl-9 pr-3 py-2 text-sm border focus:outline-none transition ${
+                      darkMode
+                        ? 'bg-zinc-950 border-zinc-800 text-zinc-100 focus:border-zinc-600 placeholder-zinc-600'
+                        : 'bg-white border-zinc-300 text-zinc-900 focus:border-zinc-900 placeholder-zinc-400'
+                    }`}
+                  />
+                </div>
               </div>
-            </div>
 
-            <button
-              type="submit"
-              disabled={authLoading}
-              className="w-full bg-[#a8c7fa] hover:bg-[#8ab4f8] disabled:opacity-50 text-[#062e6f] font-semibold py-3 rounded-full transition shadow-md mt-2 text-sm"
-            >
-              {authLoading
-                ? 'Memproses...'
-                : authMode === 'login'
-                ? 'Lanjutkan ke NALAR'
-                : 'Daftar Sekarang'}
+              <div>
+                <label
+                  htmlFor="password-input"
+                  className={`block text-xs font-medium mb-1.5 ${
+                    darkMode ? 'text-zinc-300' : 'text-zinc-700'
+                  }`}
+                >
+                  Kata Sandi
+                </label>
+                <div className="relative">
+                  <Lock
+                    size={15}
+                    className={`absolute left-3 top-2.5 ${
+                      darkMode ? 'text-zinc-500' : 'text-zinc-400'
+                    }`}
+                  />
+                  <input
+                    id="password-input"
+                    name="password"
+                    type="password"
+                    autoComplete={authMode === 'login' ? 'current-password' : 'new-password'}
+                    required
+                    value={authPassword}
+                    onChange={(e) => setAuthPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className={`w-full rounded-lg pl-9 pr-3 py-2 text-sm border focus:outline-none transition ${
+                      darkMode
+                        ? 'bg-zinc-950 border-zinc-800 text-zinc-100 focus:border-zinc-600 placeholder-zinc-600'
+                        : 'bg-white border-zinc-300 text-zinc-900 focus:border-zinc-900 placeholder-zinc-400'
+                    }`}
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={authLoading}
+                className={`w-full font-medium py-2.5 rounded-lg text-xs transition mt-2 ${
+                  darkMode
+                    ? 'bg-zinc-100 hover:bg-white text-zinc-950 disabled:opacity-50'
+                    : 'bg-zinc-900 hover:bg-zinc-800 text-white disabled:opacity-50'
+                }`}
+              >
+                {authLoading
+                  ? 'Memverifikasi...'
+                  : authMode === 'login'
+                  ? 'Masuk ke Workspace'
+                  : 'Buat Akun Sekarang'}
+              </button>
+            </form>
+          </div>
+
+          <div className="mt-6 flex items-center justify-between text-xs text-zinc-500">
+            <span>© 2026 NALAR Systems</span>
+            <button onClick={toggleTheme} className="hover:underline flex items-center gap-1.5">
+              {darkMode ? <Sun size={13} /> : <Moon size={13} />}
+              <span>{darkMode ? 'Mode Terang' : 'Mode Gelap'}</span>
             </button>
-          </form>
+          </div>
         </div>
       </div>
     );
   }
 
+  // ============================================================================
+  // MAIN WORKSPACE: PRODUCTION SAAS DASHBOARD (Linear / Raycast / Vercel Aesthetic)
+  // ============================================================================
   return (
     <div
-      className={`flex h-screen font-sans overflow-hidden ${
-        darkMode ? 'bg-[#131314] text-[#e3e3e3]' : 'bg-[#f8fafd] text-[#1f1f1f]'
+      className={`flex h-screen font-sans overflow-hidden transition-colors ${
+        darkMode ? 'bg-zinc-950 text-zinc-100' : 'bg-white text-zinc-900'
       }`}
     >
-      {/* SIDEBAR KIRI IDENTIK DENGAN GOOGLE GEMINI */}
+      {/* SIDEBAR NAVIGATION */}
       <aside
         className={`${
-          sidebarExpanded ? 'w-72' : 'w-[68px]'
-        } transition-all duration-300 flex flex-col justify-between py-3 px-3 shrink-0 select-none ${
-          darkMode ? 'bg-[#1e1f20]' : 'bg-[#f0f4f9]'
+          sidebarOpen ? 'w-64' : 'w-0 border-r-0'
+        } transition-all duration-200 flex flex-col justify-between shrink-0 overflow-hidden select-none border-r ${
+          darkMode ? 'bg-zinc-900/50 border-zinc-800/80' : 'bg-zinc-50/90 border-zinc-200/80'
         }`}
       >
-        <div className="space-y-4">
-          <div className="flex items-center justify-between px-1.5">
+        {/* Top Workspace Brand & New Thread */}
+        <div className="p-3 space-y-3">
+          <div className="flex items-center justify-between px-1.5 py-1">
+            <div className="flex items-center gap-2.5">
+              <div
+                className={`w-6 h-6 rounded-md flex items-center justify-center font-bold text-xs ${
+                  darkMode ? 'bg-zinc-100 text-zinc-950' : 'bg-zinc-900 text-white'
+                }`}
+              >
+                N
+              </div>
+              <span className="font-semibold text-sm tracking-tight">NALAR</span>
+              <span
+                className={`text-[10px] font-medium px-1.5 py-0.5 rounded border ${
+                  darkMode
+                    ? 'bg-zinc-800/80 border-zinc-700 text-zinc-300'
+                    : 'bg-zinc-200/70 border-zinc-300 text-zinc-700'
+                }`}
+              >
+                PRO
+              </span>
+            </div>
             <button
-              onClick={() => setSidebarExpanded(!sidebarExpanded)}
-              className={`p-2.5 rounded-full transition ${
-                darkMode ? 'hover:bg-[#333537] text-[#c4c7c5]' : 'hover:bg-[#e1e5ea] text-[#444746]'
+              onClick={() => setSidebarOpen(false)}
+              className={`p-1.5 rounded-md transition ${
+                darkMode
+                  ? 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
+                  : 'text-zinc-500 hover:bg-zinc-200/70 hover:text-zinc-900'
               }`}
-              title="Buka/Tutup Menu"
+              title="Sembunyikan Sidebar"
             >
-              <Menu size={20} />
+              <PanelLeft size={16} />
             </button>
           </div>
 
+          {/* Tombol New Thread SaaS */}
           <button
             onClick={startNewChat}
-            className={`flex items-center gap-3 rounded-full py-2.5 px-3.5 text-sm font-medium transition ${
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium border transition shadow-sm ${
               darkMode
-                ? 'bg-[#131314] hover:bg-[#282a2c] text-[#e3e3e3] border border-[#333537]'
-                : 'bg-[#dde3ea] hover:bg-[#d3dbe5] text-[#1f1f1f]'
-            } ${!sidebarExpanded ? 'justify-center px-0 w-11 h-11' : 'w-fit pr-5'}`}
-            title="Percakapan Baru"
+                ? 'bg-zinc-900 hover:bg-zinc-800/90 border-zinc-800 text-zinc-100'
+                : 'bg-white hover:bg-zinc-100/80 border-zinc-200/90 text-zinc-900'
+            }`}
           >
-            <Plus size={19} className="shrink-0 text-[#a8c7fa]" />
-            {sidebarExpanded && <span>Chat baru</span>}
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto my-4 space-y-5 px-1">
-          {sidebarExpanded ? (
-            <>
-              <div>
-                <div className="flex items-center justify-between px-2 mb-1.5">
-                  <span className="text-[11px] font-medium uppercase tracking-wider text-[#8e918f]">
-                    Gems Nalar
-                  </span>
-                  <button
-                    onClick={() => setActiveView('gems')}
-                    className="text-[11px] text-[#a8c7fa] hover:underline"
-                  >
-                    Jelajahi
-                  </button>
-                </div>
-                <div className="space-y-0.5">
-                  {DEFAULT_GEMS.map((gem) => (
-                    <button
-                      key={gem.id}
-                      onClick={() => {
-                        setActiveGem(gem);
-                        setActiveView('chat');
-                      }}
-                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-full text-xs transition ${
-                        activeGem.id === gem.id && activeView === 'chat'
-                          ? darkMode
-                            ? 'bg-[#004a77] text-[#c2e7ff] font-medium'
-                            : 'bg-[#c2e7ff] text-[#001d35] font-medium'
-                          : darkMode
-                          ? 'text-[#c4c7c5] hover:bg-[#282a2c]'
-                          : 'text-[#444746] hover:bg-[#e1e5ea]'
-                      }`}
-                    >
-                      <span className="text-sm">{gem.icon}</span>
-                      <span className="truncate">{gem.name}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {pinnedChats.length > 0 && (
-                <div>
-                  <p className="text-[11px] font-medium uppercase tracking-wider text-[#8e918f] px-2 mb-1.5">
-                    Disematkan
-                  </p>
-                  <div className="space-y-0.5">
-                    {pinnedChats.map((chat) => (
-                      <div
-                        key={chat.id}
-                        onClick={() => loadChat(chat.id)}
-                        className={`group flex items-center justify-between px-3 py-2 rounded-full cursor-pointer text-xs transition ${
-                          activeChatId === chat.id
-                            ? darkMode
-                              ? 'bg-[#004a77] text-[#c2e7ff] font-medium'
-                              : 'bg-[#c2e7ff] text-[#001d35] font-medium'
-                            : darkMode
-                            ? 'text-[#c4c7c5] hover:bg-[#282a2c]'
-                            : 'text-[#444746] hover:bg-[#e1e5ea]'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2.5 truncate">
-                          <Pin size={13} className="shrink-0 text-[#a8c7fa]" />
-                          <span className="truncate">{chat.title}</span>
-                        </div>
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
-                          <button
-                            onClick={(e) => togglePinChat(chat, e)}
-                            title="Lepas sematan"
-                            className="p-1 hover:text-white"
-                          >
-                            <Pin size={12} />
-                          </button>
-                          <button
-                            onClick={(e) => deleteChat(chat.id, e)}
-                            title="Hapus"
-                            className="p-1 hover:text-red-400"
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <p className="text-[11px] font-medium uppercase tracking-wider text-[#8e918f] px-2 mb-1.5">
-                  Terkini
-                </p>
-                {recentChats.length === 0 ? (
-                  <p className="text-xs text-[#8e918f] px-3 py-2">Belum ada percakapan</p>
-                ) : (
-                  <div className="space-y-0.5">
-                    {recentChats.map((chat) => (
-                      <div
-                        key={chat.id}
-                        onClick={() => loadChat(chat.id)}
-                        className={`group flex items-center justify-between px-3 py-2 rounded-full cursor-pointer text-xs transition ${
-                          activeChatId === chat.id
-                            ? darkMode
-                              ? 'bg-[#004a77] text-[#c2e7ff] font-medium'
-                              : 'bg-[#c2e7ff] text-[#001d35] font-medium'
-                            : darkMode
-                            ? 'text-[#c4c7c5] hover:bg-[#282a2c]'
-                            : 'text-[#444746] hover:bg-[#e1e5ea]'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2.5 truncate">
-                          <MessageSquare size={13} className="shrink-0" />
-                          <span className="truncate">{chat.title}</span>
-                        </div>
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
-                          <button
-                            onClick={(e) => togglePinChat(chat, e)}
-                            title="Sematkan chat"
-                            className="p-1 hover:text-[#a8c7fa]"
-                          >
-                            <Pin size={12} />
-                          </button>
-                          <button
-                            onClick={(e) => deleteChat(chat.id, e)}
-                            title="Hapus"
-                            className="p-1 hover:text-red-400"
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </>
-          ) : (
-            <div className="flex flex-col items-center space-y-3 pt-2">
-              <button
-                onClick={() => setActiveView('gems')}
-                className={`p-2.5 rounded-full transition ${
-                  activeView === 'gems' ? 'bg-[#004a77] text-[#c2e7ff]' : 'hover:bg-[#333537] text-[#c4c7c5]'
-                }`}
-                title="Pengelola Gem"
-              >
-                <Compass size={19} />
-              </button>
-            </div>
-          )}
-        </div>
-
-        <div className="space-y-1 pt-2 border-t border-[#333537]/60">
-          <button
-            onClick={() => setActiveView('gems')}
-            className={`w-full flex items-center gap-3.5 px-3 py-2.5 rounded-full text-xs transition ${
-              activeView === 'gems'
-                ? 'bg-[#004a77] text-[#c2e7ff] font-medium'
-                : darkMode
-                ? 'text-[#c4c7c5] hover:bg-[#282a2c]'
-                : 'text-[#444746] hover:bg-[#e1e5ea]'
-            } ${!sidebarExpanded && 'justify-center px-0'}`}
-            title="Pengelola Gem"
-          >
-            <Compass size={18} className="shrink-0" />
-            {sidebarExpanded && <span>Pengelola Gem</span>}
-          </button>
-
-          <button
-            onClick={() => setActiveView('activity')}
-            className={`w-full flex items-center gap-3.5 px-3 py-2.5 rounded-full text-xs transition ${
-              activeView === 'activity'
-                ? 'bg-[#004a77] text-[#c2e7ff] font-medium'
-                : darkMode
-                ? 'text-[#c4c7c5] hover:bg-[#282a2c]'
-                : 'text-[#444746] hover:bg-[#e1e5ea]'
-            } ${!sidebarExpanded && 'justify-center px-0'}`}
-            title="Aktivitas Nalar"
-          >
-            <History size={18} className="shrink-0" />
-            {sidebarExpanded && <span>Aktivitas</span>}
-          </button>
-
-          <button
-            onClick={() => setActiveView('settings')}
-            className={`w-full flex items-center gap-3.5 px-3 py-2.5 rounded-full text-xs transition ${
-              activeView === 'settings'
-                ? 'bg-[#004a77] text-[#c2e7ff] font-medium'
-                : darkMode
-                ? 'text-[#c4c7c5] hover:bg-[#282a2c]'
-                : 'text-[#444746] hover:bg-[#e1e5ea]'
-            } ${!sidebarExpanded && 'justify-center px-0'}`}
-            title="Setelan & Tema"
-          >
-            <Settings size={18} className="shrink-0" />
-            {sidebarExpanded && <span>Setelan & bantuan</span>}
-          </button>
-
-          {sidebarExpanded && (
-            <div className="px-3 pt-2 flex items-center gap-2 text-[11px] text-[#8e918f]">
-              <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-              <span>Indonesia • NALAR v5.0</span>
-            </div>
-          )}
-        </div>
-      </aside>
-
-      {/* AREA UTAMA DASHBOARD NALAR */}
-      <main className="flex-1 flex flex-col h-full relative overflow-hidden">
-        <header className="h-16 px-6 flex items-center justify-between shrink-0 z-20">
-          <div className="relative">
-            <button
-              onClick={() => setModelMenuOpen(!modelMenuOpen)}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-base font-medium transition ${
-                darkMode ? 'hover:bg-[#1e1f20] text-[#e3e3e3]' : 'hover:bg-[#e9eef6] text-[#1f1f1f]'
+            <span className="flex items-center gap-2">
+              <Plus size={15} />
+              <span>Thread Baru</span>
+            </span>
+            <kbd
+              className={`text-[10px] px-1.5 py-0.5 rounded ${
+                darkMode ? 'bg-zinc-800 text-zinc-400' : 'bg-zinc-100 text-zinc-500'
               }`}
             >
-              <span className="font-semibold tracking-tight">NALAR</span>
-              <span className="text-xs px-2 py-0.5 rounded-full bg-gradient-to-r from-[#4285f4]/20 to-[#d96570]/20 text-[#a8c7fa] border border-[#a8c7fa]/30">
-                {currentModelInfo.name.replace('NALAR ', '')}
-              </span>
-              <ChevronDown size={16} className="text-[#8e918f]" />
-            </button>
+              ⌘K
+            </kbd>
+          </button>
 
-            {modelMenuOpen && (
-              <div
-                className={`absolute left-0 mt-2 w-80 rounded-2xl p-2 shadow-2xl border z-50 ${
-                  darkMode ? 'bg-[#1e1f20] border-[#333537]' : 'bg-white border-gray-200'
+          {/* Search Filter */}
+          <div className="relative">
+            <Search
+              size={13}
+              className={`absolute left-2.5 top-2.5 ${
+                darkMode ? 'text-zinc-500' : 'text-zinc-400'
+              }`}
+            />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Cari riwayat diskusi..."
+              className={`w-full pl-8 pr-3 py-1.5 rounded-md text-xs border focus:outline-none transition ${
+                darkMode
+                  ? 'bg-zinc-950/60 border-zinc-800/80 text-zinc-200 placeholder-zinc-500 focus:border-zinc-700'
+                  : 'bg-white border-zinc-200/90 text-zinc-800 placeholder-zinc-400 focus:border-zinc-400'
+              }`}
+            />
+          </div>
+        </div>
+
+        {/* Center Scrollable Area */}
+        <div className="flex-1 overflow-y-auto px-3 space-y-5 my-1">
+          {/* Workspace Modules */}
+          <div>
+            <div className="flex items-center justify-between px-1.5 mb-1.5">
+              <span
+                className={`text-[11px] font-medium ${
+                  darkMode ? 'text-zinc-500' : 'text-zinc-400'
                 }`}
               >
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8e918f] px-3 py-2">
-                  Pilih Model NALAR
-                </p>
-                {MODEL_OPTIONS.map((m) => (
-                  <button
-                    key={m.id}
-                    onClick={() => {
-                      setSelectedModel(m.id);
-                      setModelMenuOpen(false);
-                    }}
-                    className={`w-full flex items-start justify-between p-3 rounded-xl text-left transition ${
-                      selectedModel === m.id
-                        ? darkMode
-                          ? 'bg-[#282a2c]'
-                          : 'bg-[#f0f4f9]'
-                        : darkMode
-                        ? 'hover:bg-[#282a2c]/60'
-                        : 'hover:bg-gray-100'
+                Modul Kerja
+              </span>
+              <button
+                onClick={() => setActiveView('modules')}
+                className={`text-[11px] hover:underline ${
+                  darkMode ? 'text-zinc-400' : 'text-zinc-600'
+                }`}
+              >
+                Semua
+              </button>
+            </div>
+            <div className="space-y-0.5">
+              {WORKSPACE_MODULES.map((mod) => (
+                <button
+                  key={mod.id}
+                  onClick={() => {
+                    setActiveModule(mod);
+                    setActiveView('chat');
+                  }}
+                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs transition ${
+                    activeModule.id === mod.id && activeView === 'chat'
+                      ? darkMode
+                        ? 'bg-zinc-800/90 text-zinc-100 font-medium'
+                        : 'bg-zinc-200/80 text-zinc-900 font-medium'
+                      : darkMode
+                      ? 'text-zinc-400 hover:bg-zinc-800/40 hover:text-zinc-200'
+                      : 'text-zinc-600 hover:bg-zinc-200/40 hover:text-zinc-900'
+                  }`}
+                >
+                  <span className="truncate">{mod.name}</span>
+                  <span
+                    className={`text-[10px] ${
+                      darkMode ? 'text-zinc-500' : 'text-zinc-400'
                     }`}
                   >
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium">{m.name}</span>
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#004a77] text-[#c2e7ff]">
-                          {m.badge}
-                        </span>
-                      </div>
-                      <p className="text-xs text-[#8e918f] mt-0.5">{m.desc}</p>
+                    {mod.role}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Pinned Threads */}
+          {pinnedChats.length > 0 && (
+            <div>
+              <p
+                className={`text-[11px] font-medium px-1.5 mb-1.5 ${
+                  darkMode ? 'text-zinc-500' : 'text-zinc-400'
+                }`}
+              >
+                Disematkan
+              </p>
+              <div className="space-y-0.5">
+                {pinnedChats.map((chat) => (
+                  <div
+                    key={chat.id}
+                    onClick={() => loadChat(chat.id)}
+                    className={`group flex items-center justify-between px-2.5 py-1.5 rounded-md cursor-pointer text-xs transition ${
+                      activeChatId === chat.id
+                        ? darkMode
+                          ? 'bg-zinc-800 text-zinc-100 font-medium'
+                          : 'bg-zinc-200/80 text-zinc-900 font-medium'
+                        : darkMode
+                        ? 'text-zinc-400 hover:bg-zinc-800/40 hover:text-zinc-200'
+                        : 'text-zinc-600 hover:bg-zinc-200/40 hover:text-zinc-900'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <Pin size={12} className="shrink-0 opacity-70" />
+                      <span className="truncate">{chat.title}</span>
                     </div>
-                    {selectedModel === m.id && (
-                      <CheckCircle2 size={17} className="text-[#a8c7fa] shrink-0 mt-1" />
-                    )}
-                  </button>
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
+                      <button
+                        onClick={(e) => togglePinChat(chat, e)}
+                        className="p-0.5 hover: opacity-80"
+                        title="Lepas sematan"
+                      >
+                        <Pin size={11} />
+                      </button>
+                      <button
+                        onClick={(e) => deleteChat(chat.id, e)}
+                        className="p-0.5 hover:text-red-500"
+                        title="Hapus"
+                      >
+                        <Trash2 size={11} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Recent Threads */}
+          <div>
+            <p
+              className={`text-[11px] font-medium px-1.5 mb-1.5 ${
+                darkMode ? 'text-zinc-500' : 'text-zinc-400'
+              }`}
+            >
+              Riwayat Diskusi
+            </p>
+            {recentChats.length === 0 ? (
+              <p className={`text-xs px-2 py-1.5 ${darkMode ? 'text-zinc-600' : 'text-zinc-400'}`}>
+                Belum ada thread aktif
+              </p>
+            ) : (
+              <div className="space-y-0.5">
+                {recentChats.map((chat) => (
+                  <div
+                    key={chat.id}
+                    onClick={() => loadChat(chat.id)}
+                    className={`group flex items-center justify-between px-2.5 py-1.5 rounded-md cursor-pointer text-xs transition ${
+                      activeChatId === chat.id
+                        ? darkMode
+                          ? 'bg-zinc-800 text-zinc-100 font-medium'
+                          : 'bg-zinc-200/80 text-zinc-900 font-medium'
+                        : darkMode
+                        ? 'text-zinc-400 hover:bg-zinc-800/40 hover:text-zinc-200'
+                        : 'text-zinc-600 hover:bg-zinc-200/40 hover:text-zinc-900'
+                    }`}
+                  >
+                    <span className="truncate pr-2">{chat.title}</span>
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition shrink-0">
+                      <button
+                        onClick={(e) => togglePinChat(chat, e)}
+                        className="p-0.5 hover:opacity-80"
+                        title="Sematkan"
+                      >
+                        <Pin size={11} />
+                      </button>
+                      <button
+                        onClick={(e) => deleteChat(chat.id, e)}
+                        className="p-0.5 hover:text-red-500"
+                        title="Hapus"
+                      >
+                        <Trash2 size={11} />
+                      </button>
+                    </div>
+                  </div>
                 ))}
               </div>
             )}
           </div>
+        </div>
 
-          <div className="flex items-center gap-3 relative">
-            <button
-              onClick={toggleTheme}
-              className={`p-2.5 rounded-full transition ${
-                darkMode ? 'hover:bg-[#1e1f20] text-[#c4c7c5]' : 'hover:bg-[#e9eef6] text-[#444746]'
-              }`}
-              title={darkMode ? 'Mode Terang' : 'Mode Gelap'}
-            >
-              {darkMode ? <Sun size={19} /> : <Moon size={19} />}
-            </button>
+        {/* Bottom Navigation & User Bar */}
+        <div
+          className={`p-3 border-t space-y-1 ${
+            darkMode ? 'border-zinc-800/80' : 'border-zinc-200/80'
+          }`}
+        >
+          <button
+            onClick={() => setActiveView('modules')}
+            className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs transition ${
+              activeView === 'modules'
+                ? darkMode
+                  ? 'bg-zinc-800 text-zinc-100 font-medium'
+                  : 'bg-zinc-200/80 text-zinc-900 font-medium'
+                : darkMode
+                ? 'text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200'
+                : 'text-zinc-600 hover:bg-zinc-200/50 hover:text-zinc-900'
+            }`}
+          >
+            <Layers size={15} />
+            <span>Direktori Modul</span>
+          </button>
 
-            <button
-              onClick={() => setProfileMenuOpen(!profileMenuOpen)}
-              className="flex items-center gap-2.5 p-1 pr-3 rounded-full bg-[#1e1f20] hover:bg-[#282a2c] border border-[#333537] transition"
-            >
-              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#4285f4] via-[#9b72cb] to-[#d96570] flex items-center justify-center text-white font-semibold text-xs">
-                {user.name.charAt(0).toUpperCase()}
-              </div>
-              <span className="text-xs font-medium text-[#e3e3e3] hidden sm:inline">
-                {user.name}
-              </span>
-            </button>
+          <button
+            onClick={() => setActiveView('logs')}
+            className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs transition ${
+              activeView === 'logs'
+                ? darkMode
+                  ? 'bg-zinc-800 text-zinc-100 font-medium'
+                  : 'bg-zinc-200/80 text-zinc-900 font-medium'
+                : darkMode
+                ? 'text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200'
+                : 'text-zinc-600 hover:bg-zinc-200/50 hover:text-zinc-900'
+            }`}
+          >
+            <History size={15} />
+            <span>Log Aktivitas</span>
+          </button>
 
-            {profileMenuOpen && (
+          <button
+            onClick={() => setActiveView('settings')}
+            className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs transition ${
+              activeView === 'settings'
+                ? darkMode
+                  ? 'bg-zinc-800 text-zinc-100 font-medium'
+                  : 'bg-zinc-200/80 text-zinc-900 font-medium'
+                : darkMode
+                ? 'text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200'
+                : 'text-zinc-600 hover:bg-zinc-200/50 hover:text-zinc-900'
+            }`}
+          >
+            <Settings size={15} />
+            <span>Preferensi Sistem</span>
+          </button>
+
+          {/* Compact User Profile Footer */}
+          <div
+            className={`mt-2 pt-2 border-t flex items-center justify-between px-1.5 ${
+              darkMode ? 'border-zinc-800/60' : 'border-zinc-200/70'
+            }`}
+          >
+            <div className="flex items-center gap-2 truncate">
               <div
-                className={`absolute right-0 top-12 w-64 rounded-3xl p-4 shadow-2xl border z-50 ${
-                  darkMode ? 'bg-[#1e1f20] border-[#333537]' : 'bg-white border-gray-200'
+                className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 ${
+                  darkMode ? 'bg-zinc-800 text-zinc-200' : 'bg-zinc-200 text-zinc-800'
                 }`}
               >
-                <div className="flex flex-col items-center text-center pb-4 border-b border-[#333537]">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-[#4285f4] via-[#9b72cb] to-[#d96570] flex items-center justify-center text-white font-bold text-lg mb-2">
-                    {user.name.charAt(0).toUpperCase()}
-                  </div>
-                  <p className="text-sm font-semibold">Halo, {user.name}!</p>
-                  <p className="text-xs text-[#8e918f]">{user.email}</p>
-                </div>
-                <div className="pt-3 space-y-1">
-                  <button
-                    onClick={() => {
-                      setActiveView('activity');
-                      setProfileMenuOpen(false);
-                    }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs hover:bg-[#282a2c] transition"
-                  >
-                    <History size={15} />
-                    <span>Kelola Aktivitas Nalar</span>
-                  </button>
-                  <button
-                    onClick={handleLogout}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-red-400 hover:bg-red-500/10 transition"
-                  >
-                    <LogOut size={15} />
-                    <span>Keluar dari Akun</span>
-                  </button>
-                </div>
+                {user.name.charAt(0).toUpperCase()}
               </div>
+              <div className="truncate">
+                <p className="text-xs font-medium truncate">{user.name}</p>
+                <p className={`text-[10px] truncate ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>
+                  {user.email}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={handleLogout}
+              title="Keluar"
+              className={`p-1.5 rounded-md transition ${
+                darkMode
+                  ? 'text-zinc-400 hover:bg-zinc-800 hover:text-red-400'
+                  : 'text-zinc-500 hover:bg-zinc-200 hover:text-red-600'
+              }`}
+            >
+              <LogOut size={14} />
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      {/* MAIN CONTENT AREA */}
+      <main className="flex-1 flex flex-col h-full relative overflow-hidden">
+        {/* CRISP SAAS TOP HEADER BAR */}
+        <header
+          className={`h-13 py-2.5 px-5 border-b flex items-center justify-between shrink-0 z-20 ${
+            darkMode ? 'bg-zinc-950/80 border-zinc-800/80' : 'bg-white/80 border-zinc-200/80'
+          } backdrop-blur-md`}
+        >
+          <div className="flex items-center gap-3">
+            {!sidebarOpen && (
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className={`p-1.5 rounded-md border transition ${
+                  darkMode
+                    ? 'border-zinc-800 hover:bg-zinc-900 text-zinc-300'
+                    : 'border-zinc-200 hover:bg-zinc-100 text-zinc-700'
+                }`}
+                title="Tampilkan Sidebar"
+              >
+                <PanelLeft size={16} />
+              </button>
             )}
+
+            {/* Breadcrumb & Model Selector */}
+            <div className="flex items-center gap-2 text-xs">
+              <span className={darkMode ? 'text-zinc-400' : 'text-zinc-500'}>
+                {activeModule.name}
+              </span>
+              <span className={darkMode ? 'text-zinc-700' : 'text-zinc-300'}>/</span>
+
+              <div className="relative">
+                <button
+                  onClick={() => setModelMenuOpen(!modelMenuOpen)}
+                  className={`flex items-center gap-2 px-2.5 py-1 rounded-md border font-medium transition ${
+                    darkMode
+                      ? 'bg-zinc-900 border-zinc-800 hover:border-zinc-700 text-zinc-100'
+                      : 'bg-zinc-50 border-zinc-200 hover:border-zinc-300 text-zinc-900'
+                  }`}
+                >
+                  <span>{currentModelInfo.name}</span>
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded ${
+                      darkMode ? 'bg-zinc-800 text-zinc-400' : 'bg-zinc-200/80 text-zinc-600'
+                    }`}
+                  >
+                    {currentModelInfo.tier}
+                  </span>
+                  <ChevronDown size={13} className="opacity-60" />
+                </button>
+
+                {modelMenuOpen && (
+                  <div
+                    className={`absolute left-0 mt-1.5 w-72 rounded-xl p-1.5 shadow-xl border z-50 ${
+                      darkMode ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-zinc-200'
+                    }`}
+                  >
+                    <div
+                      className={`text-[10px] font-medium px-2.5 py-1.5 ${
+                        darkMode ? 'text-zinc-500' : 'text-zinc-400'
+                      }`}
+                    >
+                      Pilih Engine Pemrosesan
+                    </div>
+                    {MODEL_OPTIONS.map((m) => (
+                      <button
+                        key={m.id}
+                        onClick={() => {
+                          setSelectedModel(m.id);
+                          setModelMenuOpen(false);
+                        }}
+                        className={`w-full flex items-start justify-between p-2.5 rounded-lg text-left transition ${
+                          selectedModel === m.id
+                            ? darkMode
+                              ? 'bg-zinc-800/90 text-zinc-100'
+                              : 'bg-zinc-100 text-zinc-900'
+                            : darkMode
+                            ? 'hover:bg-zinc-800/40 text-zinc-300'
+                            : 'hover:bg-zinc-50 text-zinc-700'
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-medium">{m.name}</span>
+                            <span
+                              className={`text-[10px] px-1.5 py-0.2 rounded border ${
+                                darkMode
+                                  ? 'bg-zinc-950 border-zinc-700 text-zinc-400'
+                                  : 'bg-white border-zinc-200 text-zinc-600'
+                              }`}
+                            >
+                              {m.tier}
+                            </span>
+                          </div>
+                          <p
+                            className={`text-[11px] mt-0.5 ${
+                              darkMode ? 'text-zinc-500' : 'text-zinc-500'
+                            }`}
+                          >
+                            {m.desc}
+                          </p>
+                        </div>
+                        {selectedModel === m.id && (
+                          <Check size={14} className="shrink-0 mt-0.5" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Right Action Controls */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={toggleTheme}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs transition ${
+                darkMode
+                  ? 'bg-zinc-900 border-zinc-800 hover:bg-zinc-800 text-zinc-300'
+                  : 'bg-white border-zinc-200 hover:bg-zinc-50 text-zinc-700'
+              }`}
+              title="Ubah Tema Warna"
+            >
+              {darkMode ? <Sun size={13} /> : <Moon size={13} />}
+              <span className="hidden sm:inline">{darkMode ? 'Light' : 'Dark'}</span>
+            </button>
           </div>
         </header>
 
-        {activeView === 'gems' && (
-          <div className="flex-1 overflow-y-auto px-6 md:px-20 py-8">
+        {/* VIEW 1: WORKSPACE MODULES DIRECTORY */}
+        {activeView === 'modules' && (
+          <div className="flex-1 overflow-y-auto px-6 md:px-16 py-8">
             <div className="max-w-4xl mx-auto">
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center justify-between mb-6 pb-4 border-b border-zinc-500/15">
                 <div>
-                  <h2 className="text-2xl font-semibold">Pengelola Gem</h2>
-                  <p className="text-sm text-[#8e918f] mt-1">
-                    Pilih asisten spesialis NALAR yang sudah dikustomisasi untuk kebutuhan spesifik Anda.
+                  <h2 className="text-lg font-semibold tracking-tight">Direktori Modul Spesialis</h2>
+                  <p className={`text-xs mt-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                    Konfigurasi konteks sistem untuk departemen dan fungsi kerja spesifik.
                   </p>
                 </div>
                 <button
                   onClick={() => setActiveView('chat')}
-                  className="px-4 py-2 rounded-full text-xs font-medium bg-[#333537] hover:bg-[#444746] text-white"
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${
+                    darkMode
+                      ? 'bg-zinc-900 border-zinc-800 hover:bg-zinc-800 text-zinc-200'
+                      : 'bg-white border-zinc-200 hover:bg-zinc-50 text-zinc-800'
+                  }`}
                 >
-                  Kembali ke Chat
+                  Kembali ke Editor
                 </button>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {DEFAULT_GEMS.map((gem) => (
+                {WORKSPACE_MODULES.map((mod) => (
                   <div
-                    key={gem.id}
+                    key={mod.id}
                     onClick={() => {
-                      setActiveGem(gem);
+                      setActiveModule(mod);
                       startNewChat();
                     }}
-                    className={`p-5 rounded-3xl border cursor-pointer transition ${
-                      activeGem.id === gem.id
-                        ? 'bg-[#1e1f20] border-[#a8c7fa]'
-                        : 'bg-[#1e1f20]/70 border-[#333537] hover:border-[#8e918f]'
+                    className={`p-5 rounded-xl border cursor-pointer transition ${
+                      activeModule.id === mod.id
+                        ? darkMode
+                          ? 'bg-zinc-900 border-zinc-600'
+                          : 'bg-zinc-50/80 border-zinc-900'
+                        : darkMode
+                        ? 'bg-zinc-900/40 border-zinc-800/80 hover:border-zinc-700'
+                        : 'bg-white border-zinc-200 hover:border-zinc-300'
                     }`}
                   >
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-3xl">{gem.icon}</span>
-                      {activeGem.id === gem.id && (
-                        <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-[#004a77] text-[#c2e7ff]">
-                          Sedang Aktif
+                    <div className="flex items-center justify-between mb-2">
+                      <span
+                        className={`text-[10px] font-medium uppercase tracking-wider px-2 py-0.5 rounded border ${
+                          darkMode
+                            ? 'bg-zinc-950 border-zinc-800 text-zinc-400'
+                            : 'bg-zinc-100 border-zinc-200 text-zinc-600'
+                        }`}
+                      >
+                        {mod.role}
+                      </span>
+                      {activeModule.id === mod.id && (
+                        <span className="text-[11px] font-medium text-emerald-500 flex items-center gap-1">
+                          ● Aktif
                         </span>
                       )}
                     </div>
-                    <h3 className="text-base font-semibold mb-1">{gem.name}</h3>
-                    <p className="text-xs text-[#c4c7c5] leading-relaxed">{gem.desc}</p>
+                    <h3 className="text-sm font-semibold mt-2 mb-1">{mod.name}</h3>
+                    <p className={`text-xs leading-relaxed ${darkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>
+                      {mod.desc}
+                    </p>
                   </div>
                 ))}
               </div>
@@ -902,51 +1137,74 @@ export default function NalarGeminiApp() {
           </div>
         )}
 
-        {activeView === 'activity' && (
-          <div className="flex-1 overflow-y-auto px-6 md:px-20 py-8">
+        {/* VIEW 2: ACTIVITY LOGS */}
+        {activeView === 'logs' && (
+          <div className="flex-1 overflow-y-auto px-6 md:px-16 py-8">
             <div className="max-w-4xl mx-auto">
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center justify-between mb-6 pb-4 border-b border-zinc-500/15">
                 <div>
-                  <h2 className="text-2xl font-semibold">Aktivitas Aplikasi NALAR</h2>
-                  <p className="text-sm text-[#8e918f] mt-1">
-                    Kelola semua riwayat percakapan yang tersimpan di akun Anda ({user.email}).
+                  <h2 className="text-lg font-semibold tracking-tight">Log Aktivitas & Arsip Thread</h2>
+                  <p className={`text-xs mt-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                    Seluruh sesi diskusi yang tersimpan di akun {user.email}.
                   </p>
                 </div>
                 {chatList.length > 0 && (
                   <button
                     onClick={clearAllChats}
-                    className="px-4 py-2 rounded-full text-xs font-medium bg-red-500/15 hover:bg-red-500/25 text-red-300 border border-red-500/30"
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20"
                   >
-                    Hapus Semua Riwayat
+                    Bersihkan Semua Log
                   </button>
                 )}
               </div>
 
               {chatList.length === 0 ? (
-                <div className="p-10 rounded-3xl bg-[#1e1f20] border border-[#333537] text-center text-sm text-[#8e918f]">
-                  Belum ada riwayat aktivitas percakapan.
+                <div
+                  className={`p-10 rounded-xl border text-center text-xs ${
+                    darkMode
+                      ? 'bg-zinc-900/30 border-zinc-800 text-zinc-500'
+                      : 'bg-zinc-50 border-zinc-200 text-zinc-500'
+                  }`}
+                >
+                  Tidak ada riwayat percakapan yang tercatat.
                 </div>
               ) : (
-                <div className="space-y-2">
+                <div
+                  className={`rounded-xl border divide-y overflow-hidden ${
+                    darkMode
+                      ? 'bg-zinc-900/40 border-zinc-800 divide-zinc-800/70'
+                      : 'bg-white border-zinc-200 divide-zinc-200/70'
+                  }`}
+                >
                   {chatList.map((c) => (
                     <div
                       key={c.id}
                       onClick={() => loadChat(c.id)}
-                      className="flex items-center justify-between p-4 rounded-2xl bg-[#1e1f20] border border-[#333537] hover:border-[#8e918f] cursor-pointer transition"
+                      className={`flex items-center justify-between px-4 py-3 cursor-pointer transition text-xs ${
+                        darkMode ? 'hover:bg-zinc-800/50' : 'hover:bg-zinc-50'
+                      }`}
                     >
-                      <div className="flex items-center gap-3">
-                        <MessageSquare size={17} className="text-[#a8c7fa]" />
-                        <div>
-                          <p className="text-sm font-medium">{c.title}</p>
-                          <p className="text-[11px] text-[#8e918f]">Model: {c.model}</p>
-                        </div>
+                      <div className="flex items-center gap-3 truncate">
+                        <MessageSquare size={14} className="opacity-50 shrink-0" />
+                        <span className="font-medium truncate">{c.title}</span>
                       </div>
-                      <button
-                        onClick={(e) => deleteChat(c.id, e)}
-                        className="p-2 text-[#8e918f] hover:text-red-400"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      <div className="flex items-center gap-4 shrink-0">
+                        <span
+                          className={`text-[11px] px-2 py-0.5 rounded border ${
+                            darkMode
+                              ? 'bg-zinc-950 border-zinc-800 text-zinc-400'
+                              : 'bg-zinc-100 border-zinc-200 text-zinc-600'
+                          }`}
+                        >
+                          {c.model}
+                        </span>
+                        <button
+                          onClick={(e) => deleteChat(c.id, e)}
+                          className="text-zinc-400 hover:text-red-500"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -955,34 +1213,53 @@ export default function NalarGeminiApp() {
           </div>
         )}
 
+        {/* VIEW 3: SYSTEM PREFERENCES */}
         {activeView === 'settings' && (
-          <div className="flex-1 overflow-y-auto px-6 md:px-20 py-8">
+          <div className="flex-1 overflow-y-auto px-6 md:px-16 py-8">
             <div className="max-w-3xl mx-auto space-y-6">
-              <h2 className="text-2xl font-semibold">Setelan & Bantuan</h2>
+              <div className="pb-4 border-b border-zinc-500/15">
+                <h2 className="text-lg font-semibold tracking-tight">Preferensi Workspace</h2>
+                <p className={`text-xs mt-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                  Pengaturan antarmuka dan parameter keamanan sistem NALAR.
+                </p>
+              </div>
 
-              <div className="p-6 rounded-3xl bg-[#1e1f20] border border-[#333537] space-y-4">
-                <div className="flex items-center justify-between">
+              <div
+                className={`rounded-xl border divide-y ${
+                  darkMode
+                    ? 'bg-zinc-900/40 border-zinc-800 divide-zinc-800'
+                    : 'bg-white border-zinc-200 divide-zinc-200'
+                }`}
+              >
+                <div className="p-4 flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium">Tema Tampilan</p>
-                    <p className="text-xs text-[#8e918f]">Sesuaikan tema gelap atau terang ala Gemini</p>
+                    <p className="text-xs font-semibold">Mode Warna Antarmuka</p>
+                    <p className={`text-xs mt-0.5 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                      Gunakan palet Zinc Dark untuk ruang redup atau Crisp Alabaster untuk siang hari.
+                    </p>
                   </div>
                   <button
                     onClick={toggleTheme}
-                    className="px-4 py-2 rounded-full text-xs font-medium bg-[#333537] text-white"
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${
+                      darkMode
+                        ? 'bg-zinc-800 border-zinc-700 text-zinc-100'
+                        : 'bg-zinc-100 border-zinc-300 text-zinc-900'
+                    }`}
                   >
-                    {darkMode ? 'Mode Gelap Aktif' : 'Mode Terang Aktif'}
+                    {darkMode ? 'Zinc Dark (Aktif)' : 'Crisp Light (Aktif)'}
                   </button>
                 </div>
 
-                <div className="pt-4 border-t border-[#333537] flex items-center justify-between">
+                <div className="p-4 flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium">Keamanan Infrastruktur AI</p>
-                    <p className="text-xs text-[#8e918f]">
-                      Koneksi API NALAR dienkripsi sepenuhnya di sisi server (Server-Side Protected). Kunci API Anda 100% tersembunyi dari publik.
+                    <p className="text-xs font-semibold">Otorisasi Kredensial Server</p>
+                    <p className={`text-xs mt-0.5 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                      Kunci API dikelola secara terpusat melalui Environment Variables server dan diisolasi penuh dari klien.
                     </p>
                   </div>
-                  <span className="px-3 py-1 rounded-full text-xs bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shrink-0">
-                    Terlindungi
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 shrink-0">
+                    <ShieldCheck size={13} />
+                    <span>Server-Side Locked</span>
                   </span>
                 </div>
               </div>
@@ -990,121 +1267,157 @@ export default function NalarGeminiApp() {
           </div>
         )}
 
+        {/* VIEW 4: MAIN SAAS WORKSPACE THREAD */}
         {activeView === 'chat' && (
           <>
-            <div className="flex-1 overflow-y-auto px-4 md:px-16 py-6 space-y-6">
+            <div className="flex-1 overflow-y-auto px-4 md:px-12 py-6">
               {chatError && (
-                <div className="max-w-3xl mx-auto p-4 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs flex items-center gap-3">
-                  <AlertCircle size={18} className="shrink-0 text-red-400" />
+                <div className="max-w-3xl mx-auto mb-6 p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 text-xs flex items-center gap-2.5">
+                  <AlertCircle size={16} className="shrink-0" />
                   <span>{chatError}</span>
                 </div>
               )}
 
               {messages.length === 0 ? (
-                <div className="h-full flex flex-col justify-center max-w-3xl mx-auto py-8">
-                  <div className="mb-10">
-                    {activeGem.id !== 'default' && (
-                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#1e1f20] border border-[#333537] text-xs text-[#a8c7fa] mb-3">
-                        <span>{activeGem.icon}</span>
-                        <span>Gem Aktif: {activeGem.name}</span>
-                      </div>
-                    )}
-                    <h1 className="text-4xl md:text-5xl font-semibold tracking-tight leading-tight">
-                      <span className="bg-gradient-to-r from-[#4285f4] via-[#9b72cb] to-[#d96570] bg-clip-text text-transparent">
-                        Halo, {user.name}
-                      </span>
+                <div className="h-full flex flex-col justify-center max-w-3xl mx-auto py-6">
+                  {/* Clean Executive Greeting */}
+                  <div className="mb-8">
+                    <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md text-[11px] font-medium mb-3 border bg-emerald-500/10 text-emerald-500 border-emerald-500/20">
+                      <span>● Sistem Siap</span>
+                      <span>•</span>
+                      <span>Modul: {activeModule.name}</span>
+                    </div>
+                    <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">
+                      Selamat bekerja, {user.name}.
                     </h1>
-                    <p className="text-2xl md:text-4xl font-medium text-[#444746] dark:text-[#8e918f] mt-1">
-                      Ada yang bisa saya bantu hari ini?
+                    <p className={`text-sm mt-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                      Pilih templat kerja di bawah atau ketik instruksi langsung untuk memulai analisis.
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                  {/* Structured SaaS Action Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {[
                       {
-                        text: 'Rancang arsitektur aplikasi SaaS modern yang siap skala besar',
-                        icon: <Code size={18} className="text-[#a8c7fa]" />,
+                        title: 'Arsitektur & Review Kode',
+                        desc: 'Evaluasi struktur microservice, skema SQL PostgreSQL, dan optimasi API',
+                        prompt: 'Buatkan rancangan arsitektur backend yang scalable beserta skema tabel PostgreSQL untuk sistem transaksi B2B.',
+                        icon: <Terminal size={16} />,
                       },
                       {
-                        text: 'Bantu saya menyusun rencana bisnis & pemasaran digital',
-                        icon: <Lightbulb size={18} className="text-amber-400" />,
+                        title: 'Strategi Produk & GTM',
+                        desc: 'Susun metrik KPI, model harga SaaS, dan rencana ekspansi pasar',
+                        prompt: 'Susun kerangka strategi Go-To-Market (GTM) dan struktur pricing tier untuk produk B2B SaaS di Indonesia.',
+                        icon: <Briefcase size={16} />,
                       },
                       {
-                        text: 'Tulis artikel profesional atau esai analitis yang terstruktur',
-                        icon: <PenTool size={18} className="text-pink-400" />,
+                        title: 'Analisis Data & Laporan',
+                        desc: 'Ekstrak insight utama, tren kuartalan, dan ringkasan eksekutif',
+                        prompt: 'Bantu saya menyusun template Executive Summary untuk laporan performa kuartalan perusahaan.',
+                        icon: <FileSpreadsheet size={16} />,
                       },
                       {
-                        text: 'Ringkas dokumen panjang & temukan poin-poin kuncinya',
-                        icon: <FileText size={18} className="text-emerald-400" />,
+                        title: 'Dokumentasi & Spesifikasi',
+                        desc: 'Tulis PRD (Product Requirements Document) atau SOP standar',
+                        prompt: 'Buatkan dokumen PRD (Product Requirements Document) lengkap dengan user stories dan acceptance criteria.',
+                        icon: <PenLine size={16} />,
                       },
-                    ].map((card, idx) => (
+                    ].map((item, idx) => (
                       <button
                         key={idx}
-                        onClick={() => setInput(card.text)}
-                        className={`flex flex-col justify-between h-40 p-4 rounded-2xl text-left transition border ${
+                        onClick={() => setInput(item.prompt)}
+                        className={`group p-4 rounded-xl border text-left transition flex flex-col justify-between ${
                           darkMode
-                            ? 'bg-[#1e1f20] hover:bg-[#282a2c] border-[#333537]/80 text-[#e3e3e3]'
-                            : 'bg-[#f0f4f9] hover:bg-[#e1e5ea] border-transparent text-[#1f1f1f]'
+                            ? 'bg-zinc-900/50 hover:bg-zinc-900 border-zinc-800/90 hover:border-zinc-700'
+                            : 'bg-white hover:bg-zinc-50/80 border-zinc-200/90 hover:border-zinc-300 shadow-sm'
                         }`}
                       >
-                        <span className="text-xs leading-relaxed">{card.text}</span>
-                        <div className="w-9 h-9 rounded-full bg-[#131314]/60 flex items-center justify-center self-end">
-                          {card.icon}
+                        <div className="flex items-start justify-between gap-3 mb-2">
+                          <span className="text-xs font-semibold">{item.title}</span>
+                          <span
+                            className={`p-1.5 rounded-md border ${
+                              darkMode
+                                ? 'bg-zinc-950 border-zinc-800 text-zinc-400 group-hover:text-zinc-200'
+                                : 'bg-zinc-50 border-zinc-200 text-zinc-600 group-hover:text-zinc-900'
+                            }`}
+                          >
+                            {item.icon}
+                          </span>
                         </div>
+                        <p className={`text-xs leading-relaxed ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                          {item.desc}
+                        </p>
                       </button>
                     ))}
                   </div>
                 </div>
               ) : (
-                <div className="max-w-3xl mx-auto space-y-8 pb-6">
+                <div className="max-w-3xl mx-auto space-y-6 pb-6">
                   {messages.map((m) => (
-                    <div key={m.id} className="space-y-2">
+                    <div key={m.id} className="space-y-1.5">
                       {m.role === 'user' ? (
                         <div className="flex justify-end">
                           <div
-                            className={`rounded-3xl rounded-tr-sm px-5 py-3.5 max-w-[85%] text-sm md:text-base leading-relaxed ${
-                              darkMode ? 'bg-[#282a2c] text-[#e3e3e3]' : 'bg-[#e9eef6] text-[#1f1f1f]'
+                            className={`rounded-2xl rounded-tr-sm px-4 py-2.5 max-w-[85%] text-sm leading-relaxed border ${
+                              darkMode
+                                ? 'bg-zinc-900 border-zinc-800 text-zinc-100'
+                                : 'bg-zinc-100 border-zinc-200/80 text-zinc-900'
                             }`}
                           >
                             <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
                           </div>
                         </div>
                       ) : (
-                        <div className="flex gap-4 items-start">
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#4285f4] via-[#9b72cb] to-[#d96570] flex items-center justify-center shrink-0 mt-1 shadow-md">
-                            <Sparkles size={15} className="text-white" />
+                        <div className="flex gap-3.5 items-start">
+                          <div
+                            className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0 mt-1 text-[11px] font-bold ${
+                              darkMode ? 'bg-zinc-100 text-zinc-950' : 'bg-zinc-900 text-white'
+                            }`}
+                          >
+                            N
                           </div>
-                          <div className="flex-1 min-w-0 space-y-3">
-                            <div className="prose prose-invert max-w-none text-sm md:text-base leading-relaxed">
+                          <div className="flex-1 min-w-0 space-y-2">
+                            <div
+                              className={`prose max-w-none text-sm leading-relaxed ${
+                                darkMode ? 'prose-invert text-zinc-200' : 'text-zinc-800'
+                              }`}
+                            >
                               <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
                             </div>
 
-                            <div className="flex items-center gap-1 pt-1 text-[#8e918f]">
+                            <div className="flex items-center gap-1 pt-1">
                               <button
                                 onClick={() => handleCopy(m.content, m.id)}
-                                className="p-1.5 rounded-full hover:bg-[#282a2c] hover:text-white transition"
-                                title="Salin jawaban"
+                                className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] transition ${
+                                  darkMode
+                                    ? 'text-zinc-500 hover:bg-zinc-900 hover:text-zinc-300'
+                                    : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800'
+                                }`}
+                                title="Salin teks"
                               >
-                                {copiedId === m.id ? <Check size={15} className="text-emerald-400" /> : <Copy size={15} />}
+                                {copiedId === m.id ? (
+                                  <>
+                                    <Check size={12} className="text-emerald-500" />
+                                    <span className="text-emerald-500">Tersalin</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy size={12} />
+                                    <span>Salin</span>
+                                  </>
+                                )}
                               </button>
                               <button
                                 onClick={() => reload()}
-                                className="p-1.5 rounded-full hover:bg-[#282a2c] hover:text-white transition"
-                                title="Buat ulang respons"
+                                className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] transition ${
+                                  darkMode
+                                    ? 'text-zinc-500 hover:bg-zinc-900 hover:text-zinc-300'
+                                    : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800'
+                                }`}
+                                title="Regenerasi respons"
                               >
-                                <RotateCcw size={15} />
-                              </button>
-                              <button
-                                className="p-1.5 rounded-full hover:bg-[#282a2c] hover:text-white transition"
-                                title="Respons bagus"
-                              >
-                                <ThumbsUp size={15} />
-                              </button>
-                              <button
-                                className="p-1.5 rounded-full hover:bg-[#282a2c] hover:text-white transition"
-                                title="Respons kurang tepat"
-                              >
-                                <ThumbsDown size={15} />
+                                <RotateCcw size={12} />
+                                <span>Ulangi</span>
                               </button>
                             </div>
                           </div>
@@ -1113,11 +1426,15 @@ export default function NalarGeminiApp() {
                     </div>
                   ))}
                   {isLoading && (
-                    <div className="flex gap-4 items-center text-sm text-[#8e918f]">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#4285f4] via-[#9b72cb] to-[#d96570] flex items-center justify-center animate-pulse">
-                        <Sparkles size={15} className="text-white" />
+                    <div className="flex gap-3.5 items-center text-xs text-zinc-500">
+                      <div
+                        className={`w-6 h-6 rounded-md flex items-center justify-center font-bold text-[11px] animate-pulse ${
+                          darkMode ? 'bg-zinc-800 text-zinc-300' : 'bg-zinc-200 text-zinc-700'
+                        }`}
+                      >
+                        N
                       </div>
-                      <span>NALAR sedang menyusun jawaban...</span>
+                      <span>Memproses respons...</span>
                     </div>
                   )}
                   <div ref={messagesEndRef} />
@@ -1125,11 +1442,18 @@ export default function NalarGeminiApp() {
               )}
             </div>
 
-            <div className="px-4 md:px-16 pb-4 pt-2">
+            {/* STRUCTURED SAAS COMPOSER BAR */}
+            <div className="px-4 md:px-12 pb-4 pt-2">
               <div className="max-w-3xl mx-auto">
                 {attachmentName && (
-                  <div className="mb-2 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#1e1f20] border border-[#333537] text-xs text-[#a8c7fa]">
-                    <FileText size={14} />
+                  <div
+                    className={`mb-2 inline-flex items-center gap-2 px-3 py-1 rounded-md border text-xs ${
+                      darkMode
+                        ? 'bg-zinc-900 border-zinc-800 text-zinc-300'
+                        : 'bg-zinc-100 border-zinc-200 text-zinc-700'
+                    }`}
+                  >
+                    <FileText size={13} />
                     <span>{attachmentName}</span>
                     <button
                       type="button"
@@ -1137,73 +1461,101 @@ export default function NalarGeminiApp() {
                         setAttachmentName(null);
                         setAttachmentContent('');
                       }}
-                      className="hover:text-white"
+                      className="hover:opacity-75"
                     >
-                      <X size={14} />
+                      <X size={13} />
                     </button>
                   </div>
                 )}
 
                 <form
                   onSubmit={onFormSubmit}
-                  className={`flex items-center gap-2 rounded-full px-4 py-2.5 border transition shadow-lg ${
+                  className={`rounded-xl border transition shadow-sm ${
                     darkMode
-                      ? 'bg-[#1e1f20] border-[#333537] focus-within:bg-[#282a2c] focus-within:border-[#8e918f]'
-                      : 'bg-[#f0f4f9] border-gray-300 focus-within:bg-white'
+                      ? 'bg-zinc-900/90 border-zinc-800 focus-within:border-zinc-700'
+                      : 'bg-white border-zinc-300/90 focus-within:border-zinc-400'
                   }`}
                 >
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileUpload}
-                    accept=".txt,.md,.csv,.json,.js,.ts,.py,.sql,.html"
-                    className="hidden"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="p-2 rounded-full hover:bg-[#333537] text-[#c4c7c5] transition"
-                    title="Unggah dokumen atau file teks/kode"
-                  >
-                    <Plus size={20} />
-                  </button>
+                  <div className="px-3.5 pt-2.5 pb-1.5">
+                    <input
+                      name="prompt"
+                      autoComplete="off"
+                      value={input}
+                      onChange={handleInputChange}
+                      placeholder={`Kirim instruksi ke ${currentModelInfo.name}...`}
+                      className={`w-full bg-transparent text-sm focus:outline-none ${
+                        darkMode
+                          ? 'text-zinc-100 placeholder-zinc-500'
+                          : 'text-zinc-900 placeholder-zinc-400'
+                      }`}
+                      disabled={isLoading}
+                    />
+                  </div>
 
-                  <input
-                    name="prompt"
-                    autoComplete="off"
-                    value={input}
-                    onChange={handleInputChange}
-                    placeholder="Minta NALAR melakukan apa saja..."
-                    className="flex-1 bg-transparent px-2 py-1.5 text-sm md:text-base focus:outline-none placeholder-[#8e918f]"
-                    disabled={isLoading}
-                  />
+                  {/* Bottom Toolbar inside Composer */}
+                  <div className="flex items-center justify-between px-2.5 py-2 border-t border-zinc-500/10">
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileUpload}
+                        accept=".txt,.md,.csv,.json,.js,.ts,.py,.sql,.html"
+                        className="hidden"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs transition ${
+                          darkMode
+                            ? 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
+                            : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900'
+                        }`}
+                        title="Lampirkan file dokumen/kode"
+                      >
+                        <Paperclip size={14} />
+                        <span>Lampirkan</span>
+                      </button>
 
-                  <button
-                    type="button"
-                    onClick={handleVoiceInput}
-                    className={`p-2 rounded-full transition ${
-                      isListening
-                        ? 'bg-red-500/20 text-red-400 animate-pulse'
-                        : 'hover:bg-[#333537] text-[#c4c7c5]'
-                    }`}
-                    title="Gunakan mikrofon (Bahasa Indonesia)"
-                  >
-                    <Mic size={19} />
-                  </button>
+                      <button
+                        type="button"
+                        onClick={handleVoiceInput}
+                        className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs transition ${
+                          isListening
+                            ? 'bg-red-500/15 text-red-500 animate-pulse'
+                            : darkMode
+                            ? 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
+                            : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900'
+                        }`}
+                        title="Dikte Suara"
+                      >
+                        <Mic size={14} />
+                        <span className="hidden sm:inline">Suara</span>
+                      </button>
+                    </div>
 
-                  <button
-                    type="submit"
-                    disabled={isLoading || (!input.trim() && !attachmentName)}
-                    className="p-2.5 rounded-full bg-[#a8c7fa] hover:bg-[#8ab4f8] disabled:opacity-30 text-[#062e6f] transition"
-                    title="Kirim pesan"
-                  >
-                    <Send size={17} />
-                  </button>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`text-[11px] hidden sm:inline ${
+                          darkMode ? 'text-zinc-500' : 'text-zinc-400'
+                        }`}
+                      >
+                        {activeModule.role}
+                      </span>
+                      <button
+                        type="submit"
+                        disabled={isLoading || (!input.trim() && !attachmentName)}
+                        className={`p-1.5 rounded-lg transition ${
+                          darkMode
+                            ? 'bg-zinc-100 hover:bg-white text-zinc-950 disabled:opacity-30'
+                            : 'bg-zinc-900 hover:bg-zinc-800 text-white disabled:opacity-30'
+                        }`}
+                        title="Kirim (Enter)"
+                      >
+                        <ArrowUp size={15} />
+                      </button>
+                    </div>
+                  </div>
                 </form>
-
-                <p className="text-center text-[11px] text-[#8e918f] mt-2.5">
-                  NALAR dapat menampilkan info yang kurang akurat, jadi periksa kembali responsnya.
-                </p>
               </div>
             </div>
           </>
