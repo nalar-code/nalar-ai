@@ -5,6 +5,7 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const chatId = searchParams.get('id');
+    const userId = searchParams.get('userId');
 
     if (chatId) {
       const chat = await prisma.chat.findUnique({
@@ -15,6 +16,7 @@ export async function GET(req: Request) {
     }
 
     const chats = await prisma.chat.findMany({
+      where: userId ? { userId } : {},
       orderBy: { updatedAt: 'desc' },
       select: { id: true, title: true, model: true, updatedAt: true },
     });

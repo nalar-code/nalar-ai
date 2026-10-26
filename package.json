@@ -1,10 +1,10 @@
 {
   "name": "nalar-ai",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && prisma db push && next build",
+    "build": "prisma generate && prisma db push --accept-data-loss && next build",
     "start": "next start",
     "postinstall": "prisma generate"
   },
@@ -12,6 +12,7 @@
     "@ai-sdk/openai": "^1.0.0",
     "@prisma/client": "^5.22.0",
     "@vercel/analytics": "^2.0.1",
+    "@vercel/speed-insights": "^2.0.0",
     "ai": "^4.0.0",
     "lucide-react": "^0.460.0",
     "next": "latest",
