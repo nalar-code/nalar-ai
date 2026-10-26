@@ -4,17 +4,19 @@ import { prisma } from '@/lib/prisma';
 
 export const maxDuration = 60;
 
+// Pemetaan Model NALAR ke OpenRouter Model IDs
 const NALAR_MODELS: Record<string, string> = {
-  'nalar-kilat': 'gpt-4o-mini',
-  'nalar-pro': 'gpt-4o',
-  'nalar-logika': 'o3-mini',
+  'nalar-kilat': 'google/gemini-2.0-flash-001',
+  'nalar-pro': 'openai/gpt-4o',
+  'nalar-logika': 'deepseek/deepseek-r1',
+  'nalar-gratis': 'meta-llama/llama-3.3-70b-instruct:free',
 };
 
 const SYSTEM_PROMPT = `Kamu adalah NALAR, asisten kecerdasan buatan (AI) canggih yang cerdas, analitis, dan solutif.
 Identitasmu:
 - Nama: NALAR
 - Karakter: Logis, terstruktur, ramah, dan selalu memberikan jawaban yang akurat serta mendalam.
-- Aturan Penting: Jangan pernah menyebut dirimu sebagai ChatGPT atau buatan OpenAI. Jika ditanya siapa kamu, jawablah bahwa kamu adalah NALAR, platform AI generasi baru yang dirancang untuk membantu manusia berpikir dan bekerja lebih cerdas.
+- Aturan Penting: Jangan pernah menyebut dirimu sebagai ChatGPT, Gemini, DeepSeek, Llama, atau buatan pihak lain. Jika ditanya siapa kamu, jawablah bahwa kamu adalah NALAR, platform AI generasi baru yang dirancang untuk membantu manusia berpikir dan bekerja lebih cerdas.
 - Gunakan format Markdown yang rapi (poin-poin, tabel, atau blok kode) agar mudah dibaca.`;
 
 export async function POST(req: Request) {
@@ -22,11 +24,12 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { messages, chatId, selectedModel = 'nalar-kilat', userId, customApiKey } = body;
 
-    const apiKey = customApiKey || process.env.OPENAI_API_KEY;
+    // Mendukung OPENROUTER_API_KEY atau fallback ke OPENAI_API_KEY di Vercel
+    const apiKey = customApiKey || process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY;
     if (!apiKey) {
       return new Response(
         JSON.stringify({
-          error: 'OPENAI_API_KEY belum diatur di Vercel Environment Variables atau di menu Pengaturan API.',
+          error: 'API Key OpenRouter belum diatur di Vercel Environment Variables (OPENROUTER_API_KEY) atau di menu Pengaturan API.',
         }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
       );
@@ -35,7 +38,6 @@ export async function POST(req: Request) {
     const lastUserMessage = messages[messages.length - 1];
     let activeChatId = chatId;
 
-    // Simpan ke DB dengan aman (tidak menghentikan chat jika DB sedang sleep/error)
     try {
       if (!activeChatId) {
         const textContent =
@@ -69,11 +71,20 @@ export async function POST(req: Request) {
       console.error('Database write warning:', dbErr);
     }
 
-    const openaiProvider = createOpenAI({ apiKey });
-    const targetOpenAIModel = NALAR_MODELS[selectedModel] || 'gpt-4o-mini';
+    // Konfigurasi OpenRouter Endpoint
+    const openrouterProvider = createOpenAI({
+      baseURL: 'https://openrouter.ai/api/v1',
+      apiKey,
+      headers: {
+        'HTTP-Referer': 'https://nalar-ai-two.vercel.app',
+        'X-Title': 'NALAR AI',
+      },
+    });
+
+    const targetModel = NALAR_MODELS[selectedModel] || 'google/gemini-2.0-flash-001';
 
     const result = streamText({
-      model: openaiProvider(targetOpenAIModel),
+      model: openrouterProvider(targetModel),
       system: SYSTEM_PROMPT,
       messages,
       async onFinish({ text }) {
@@ -99,12 +110,12 @@ export async function POST(req: Request) {
       },
     });
   } catch (error: any) {
-    console.error('NALAR API Error:', error);
+    console.error('NALAR OpenRouter API Error:', error);
     return new Response(
       JSON.stringify({
         error:
           error?.message ||
-          'Gagal menghubungi OpenAI API. Pastikan OPENAI_API_KEY aktif dan memiliki saldo kredit ($).',
+          'Gagal menghubungi OpenRouter API. Pastikan API Key OpenRouter (sk-or-v1-...) Anda aktif.',
       }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     );

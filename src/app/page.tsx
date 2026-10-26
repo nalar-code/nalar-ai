@@ -21,6 +21,7 @@ import {
   AlertCircle,
   Lock,
   Mail,
+  Gift,
 } from 'lucide-react';
 
 interface ChatHistory {
@@ -89,7 +90,7 @@ export default function NalarApp() {
         const parsed = JSON.parse(err.message);
         setChatError(parsed.error || err.message);
       } catch {
-        setChatError(err.message || 'Gagal memproses chat. Periksa API Key OpenAI Anda.');
+        setChatError(err.message || 'Gagal memproses chat. Periksa API Key OpenRouter Anda.');
       }
     },
   });
@@ -191,7 +192,6 @@ export default function NalarApp() {
     setShowApiModal(false);
   };
 
-  // HALAMAN LOGIN & SIGN UP
   if (!user) {
     return (
       <div className="min-h-screen bg-[#0e1117] text-gray-100 flex items-center justify-center p-4">
@@ -204,7 +204,7 @@ export default function NalarApp() {
               Selamat Datang di NALAR AI
             </h1>
             <p className="text-xs text-gray-400 mt-1">
-              Platform Kecerdasan Buatan Generasi Baru
+              Platform AI Multi-Model (Powered by OpenRouter)
             </p>
           </div>
 
@@ -359,14 +359,13 @@ export default function NalarApp() {
           ))}
         </div>
 
-        {/* PROFIL USER & TOMBOL LOGOUT */}
         <div className="p-3 border-t border-gray-800 space-y-2">
           <button
             onClick={() => setShowApiModal(true)}
             className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-gray-300 hover:bg-gray-800 transition"
           >
             <Key size={14} className="text-indigo-400" />
-            <span>Pengaturan OpenAI API Key</span>
+            <span>Pengaturan OpenRouter Key</span>
           </button>
 
           <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-[#0e1117] border border-gray-800">
@@ -388,7 +387,7 @@ export default function NalarApp() {
       {/* AREA UTAMA CHAT */}
       <main className="flex-1 flex flex-col h-full">
         <header className="h-16 border-b border-gray-800/80 px-6 flex items-center justify-between bg-[#0e1117]/80 backdrop-blur-md">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 overflow-x-auto">
             {!sidebarOpen && (
               <button
                 onClick={() => setSidebarOpen(true)}
@@ -429,15 +428,25 @@ export default function NalarApp() {
               >
                 <Brain size={14} /> NALAR Logika
               </button>
+              <button
+                onClick={() => setSelectedModel('nalar-gratis')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition ${
+                  selectedModel === 'nalar-gratis'
+                    ? 'bg-emerald-600 text-white'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                <Gift size={14} /> NALAR Gratis
+              </button>
             </div>
           </div>
 
           <button
             onClick={() => setShowApiModal(true)}
-            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-[#161b22] border border-gray-800 hover:border-indigo-500 text-gray-300 transition"
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-[#161b22] border border-gray-800 hover:border-indigo-500 text-gray-300 transition shrink-0"
           >
             <Key size={13} className="text-indigo-400" />
-            <span>API Key</span>
+            <span>OpenRouter Key</span>
           </button>
         </header>
 
@@ -466,7 +475,7 @@ export default function NalarApp() {
                 Halo {user.name}, mari berpikir bersama NALAR.
               </h1>
               <p className="text-gray-400 text-sm md:text-base mb-8">
-                Asisten AI cerdas untuk analisis data, pemrograman, penulisan strategis, dan pemecahan masalah kompleks.
+                Asisten AI cerdas dengan dukungan multi-model OpenRouter untuk analisis data, pemrograman, dan pemecahan masalah.
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full text-left">
                 {[
@@ -538,19 +547,19 @@ export default function NalarApp() {
         </div>
       </main>
 
-      {/* MODAL PENGATURAN OPENAI API KEY */}
+      {/* MODAL PENGATURAN OPENROUTER API KEY */}
       {showApiModal && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-[#161b22] border border-gray-800 rounded-2xl max-w-md w-full p-6 shadow-2xl">
-            <h3 className="text-lg font-bold text-white mb-2">Pengaturan OpenAI API Key</h3>
+            <h3 className="text-lg font-bold text-white mb-2">Pengaturan OpenRouter API Key</h3>
             <p className="text-xs text-gray-400 mb-4">
-              Jika Anda belum mengatur <code className="text-indigo-400">OPENAI_API_KEY</code> di Vercel Environment Variables, Anda bisa memasukkan API Key OpenAI Anda langsung di sini agar chat langsung aktif.
+              Masukkan API Key dari <code className="text-indigo-400">openrouter.ai</code> (berawalan <code className="text-indigo-400">sk-or-v1-...</code>) atau simpan di Vercel Environment Variables dengan nama <code className="text-indigo-400">OPENROUTER_API_KEY</code>.
             </p>
             <input
               type="password"
               value={customApiKey}
               onChange={(e) => setCustomApiKey(e.target.value)}
-              placeholder="sk-proj-xxxxxxxxxxxxxxxxxxxxxxxx"
+              placeholder="sk-or-v1-xxxxxxxxxxxxxxxxxxxxxxxx"
               className="w-full bg-[#0e1117] border border-gray-800 focus:border-indigo-500 rounded-xl px-4 py-2.5 text-sm text-white mb-4 focus:outline-none"
             />
             <div className="flex justify-end gap-2">
