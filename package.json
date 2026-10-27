@@ -1,12 +1,13 @@
 {
   "name": "nalar-ai",
-  "version": "6.0.0",
+  "version": "9.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && prisma db push --accept-data-loss && next build",
     "start": "next start",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.0.0",

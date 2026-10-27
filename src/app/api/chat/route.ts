@@ -1,6 +1,7 @@
 import { createOpenAI } from '@ai-sdk/openai';
 import { streamText } from 'ai';
 import { prisma } from '@/lib/prisma';
+import { getServerSession } from '@/lib/security';
 
 export const maxDuration = 60;
 
@@ -20,14 +21,17 @@ Identitas & Gaya Komunikasi:
 
 export async function POST(req: Request) {
   try {
+    const session = await getServerSession();
     const body = await req.json();
-    const { messages, chatId, selectedModel = 'nalar-flash', userId, personaInstruction } = body;
+    const { messages, chatId, selectedModel = 'nalar-flash', userId, personaInstruction, userContext } = body;
+
+    const verifiedUserId = session?.userId || userId || null;
 
     const apiKey = process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY;
     if (!apiKey) {
       return new Response(
         JSON.stringify({
-          error: 'Konfigurasi server belum lengkap. Hubungi administrator workspace.',
+          error: 'Konfigurasi Server: Variabel OPENROUTER_API_KEY belum disetel di Vercel Settings > Environment Variables.',
         }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       );
@@ -47,10 +51,15 @@ export async function POST(req: Request) {
           data: {
             title: titlePreview,
             model: selectedModel,
-            userId: userId || null,
+            userId: verifiedUserId,
           },
         });
         activeChatId = newChat.id;
+      } else {
+        const existingChat = await prisma.chat.findUnique({ where: { id: activeChatId } });
+        if (existingChat && existingChat.userId && verifiedUserId && existingChat.userId !== verifiedUserId) {
+          return new Response(JSON.stringify({ error: 'Akses ditolak ke sesi percakapan ini.' }), { status: 403 });
+        }
       }
 
       if (activeChatId) {
@@ -88,9 +97,13 @@ export async function POST(req: Request) {
       ? 'gpt-4o'
       : 'gpt-4o-mini';
 
-    const finalSystemPrompt = personaInstruction
-      ? `${SYSTEM_PROMPT}\n\nKonteks Modul Spesialis Aktif:\n${personaInstruction}`
-      : SYSTEM_PROMPT;
+    let finalSystemPrompt = SYSTEM_PROMPT;
+    if (personaInstruction) {
+      finalSystemPrompt += `\n\nKonteks Modul Spesialis Aktif:\n${personaInstruction}`;
+    }
+    if (userContext) {
+      finalSystemPrompt += `\n\nKonteks Profil Pengguna:\n${userContext}`;
+    }
 
     const result = streamText({
       model: aiProvider(targetModel),
@@ -122,7 +135,7 @@ export async function POST(req: Request) {
     console.error('NALAR Server Error:', error);
     return new Response(
       JSON.stringify({
-        error: 'Permintaan tidak dapat diselesaikan saat ini. Silakan coba kirim ulang.',
+        error: error?.message || 'Gagal menghubungi OpenRouter AI API. Pastikan saldo kredit dan API Key valid.',
       }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     );

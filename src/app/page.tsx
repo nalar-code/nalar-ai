@@ -20,7 +20,6 @@ import {
   History,
   Settings,
   Layers,
-  Code2,
   FileSpreadsheet,
   PenLine,
   FileText,
@@ -36,6 +35,13 @@ import {
   ShieldCheck,
   Terminal,
   Briefcase,
+  Building2,
+  BadgeCheck,
+  KeyRound,
+  Download,
+  CheckCircle2,
+  Users,
+  Activity,
 } from 'lucide-react';
 
 interface ChatHistory {
@@ -50,6 +56,14 @@ interface UserProfile {
   id: string;
   name: string;
   email: string;
+  role?: string;
+  plan?: string;
+  dailyQuota?: number;
+  jobTitle?: string;
+  organization?: string;
+  bio?: string;
+  avatarColor?: string;
+  createdAt?: string;
 }
 
 interface WorkspaceModule {
@@ -117,9 +131,17 @@ const MODEL_OPTIONS = [
     id: 'nalar-free',
     name: 'Nalar Lite',
     tier: 'Economy',
-    desc: 'Model efisien untuk draf cepat',
+    desc: 'Model efisien Llama 3.3 70B untuk draf cepat',
   },
 ];
+
+const AVATAR_COLORS: Record<string, string> = {
+  zinc: 'bg-zinc-800 text-zinc-100',
+  emerald: 'bg-emerald-600 text-white',
+  blue: 'bg-blue-600 text-white',
+  amber: 'bg-amber-600 text-white',
+  rose: 'bg-rose-600 text-white',
+};
 
 export default function NalarSaaSWorkspace() {
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -127,15 +149,40 @@ export default function NalarSaaSWorkspace() {
   const [authName, setAuthName] = useState('');
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
+  const [authJobTitle, setAuthJobTitle] = useState('');
+  const [authOrg, setAuthOrg] = useState('');
   const [authError, setAuthError] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
 
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(true);
-  const [activeView, setActiveView] = useState<'chat' | 'modules' | 'logs' | 'settings'>('chat');
-  const [darkMode, setDarkMode] = useState<boolean>(false); // Default Light Mode bersih ala SaaS modern, bisa diganti Dark
+  const [activeView, setActiveView] = useState<'chat' | 'profile' | 'modules' | 'logs' | 'admin' | 'settings'>('chat');
+  const [darkMode, setDarkMode] = useState<boolean>(true);
   const [modelMenuOpen, setModelMenuOpen] = useState<boolean>(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // State Halaman Profil Pengguna & Keamanan
+  const [profName, setProfName] = useState('');
+  const [profJob, setProfJob] = useState('');
+  const [profOrg, setProfOrg] = useState('');
+  const [profBio, setProfBio] = useState('');
+  const [profColor, setProfColor] = useState('zinc');
+  const [profStatus, setProfStatus] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
+  const [profSaving, setProfSaving] = useState(false);
+
+  const [currPass, setCurrPass] = useState('');
+  const [newPass, setNewPass] = useState('');
+  const [passStatus, setPassStatus] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
+  const [passSaving, setPassSaving] = useState(false);
+
+  // State Admin Console
+  const [adminStats, setAdminStats] = useState<{
+    totalUsers: number;
+    totalChats: number;
+    totalMessages: number;
+    apiConfigured: boolean;
+  } | null>(null);
+  const [adminUsers, setAdminUsers] = useState<any[]>([]);
 
   const [chatList, setChatList] = useState<ChatHistory[]>([]);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
@@ -150,25 +197,44 @@ export default function NalarSaaSWorkspace() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const syncProfileForm = (u: UserProfile) => {
+    setProfName(u.name || '');
+    setProfJob(u.jobTitle || 'Professional');
+    setProfOrg(u.organization || 'Personal Workspace');
+    setProfBio(u.bio || '');
+    setProfColor(u.avatarColor || 'zinc');
+  };
+
   useEffect(() => {
     localStorage.removeItem('nalar_custom_api_key');
-    const savedUser = localStorage.getItem('nalar_user');
     const savedTheme = localStorage.getItem('nalar_theme');
-    if (savedUser) {
-      try {
-        setUser(JSON.parse(savedUser));
-      } catch (e) {
-        console.error(e);
-      }
-    }
-    if (savedTheme === 'dark') {
-      setDarkMode(true);
-    } else if (savedTheme === 'light') {
+    if (savedTheme === 'light') {
       setDarkMode(false);
     } else {
-      // Default ke Dark Mode elegan jika user belum memilih
       setDarkMode(true);
     }
+
+    fetch('/api/auth')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.user) {
+          setUser(data.user);
+          syncProfileForm(data.user);
+          localStorage.setItem('nalar_user', JSON.stringify(data.user));
+        } else {
+          const savedUser = localStorage.getItem('nalar_user');
+          if (savedUser) {
+            try {
+              const parsed = JSON.parse(savedUser);
+              setUser(parsed);
+              syncProfileForm(parsed);
+            } catch {
+              localStorage.removeItem('nalar_user');
+            }
+          }
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const toggleTheme = () => {
@@ -177,6 +243,10 @@ export default function NalarSaaSWorkspace() {
     localStorage.setItem('nalar_theme', next ? 'dark' : 'light');
   };
 
+  const userContextPrompt = user
+    ? `Nama Pengguna: ${user.name} | Jabatan/Peran: ${user.jobTitle || 'Professional'} | Organisasi: ${user.organization || 'Workspace'} ${user.bio ? `| Fokus & Preferensi Kerja: ${user.bio}` : ''}`
+    : '';
+
   const { messages, input, handleInputChange, handleSubmit, isLoading, setMessages, reload, setInput } = useChat({
     api: '/api/chat',
     body: {
@@ -184,6 +254,7 @@ export default function NalarSaaSWorkspace() {
       selectedModel,
       userId: user?.id,
       personaInstruction: activeModule.instruction,
+      userContext: userContextPrompt,
     },
     onResponse(response) {
       setChatError(null);
@@ -198,7 +269,7 @@ export default function NalarSaaSWorkspace() {
         const parsed = JSON.parse(err.message);
         setChatError(parsed.error || err.message);
       } catch {
-        setChatError('Permintaan belum dapat diproses. Silakan coba sesaat lagi.');
+        setChatError(err.message || 'Permintaan gagal. Periksa apakah OPENROUTER_API_KEY sudah terpasang di Vercel.');
       }
     },
   });
@@ -216,11 +287,31 @@ export default function NalarSaaSWorkspace() {
     }
   };
 
+  const fetchAdminData = async () => {
+    if (!user) return;
+    try {
+      const res = await fetch(`/api/admin?requesterId=${user.id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setAdminStats(data.stats);
+        setAdminUsers(data.users || []);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   useEffect(() => {
     if (user) {
       fetchChatList(user.id);
     }
   }, [user]);
+
+  useEffect(() => {
+    if (activeView === 'admin' && user) {
+      fetchAdminData();
+    }
+  }, [activeView, user]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -239,6 +330,8 @@ export default function NalarSaaSWorkspace() {
           name: authName,
           email: authEmail,
           password: authPassword,
+          jobTitle: authJobTitle,
+          organization: authOrg,
         }),
       });
       const data = await res.json();
@@ -246,6 +339,7 @@ export default function NalarSaaSWorkspace() {
         setAuthError(data.error || 'Autentikasi gagal.');
       } else {
         setUser(data.user);
+        syncProfileForm(data.user);
         localStorage.setItem('nalar_user', JSON.stringify(data.user));
       }
     } catch {
@@ -255,7 +349,12 @@ export default function NalarSaaSWorkspace() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await fetch('/api/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'logout' }),
+    });
     localStorage.removeItem('nalar_user');
     setUser(null);
     setMessages([]);
@@ -264,11 +363,118 @@ export default function NalarSaaSWorkspace() {
     setProfileMenuOpen(false);
   };
 
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    setProfSaving(true);
+    setProfStatus(null);
+    try {
+      const res = await fetch('/api/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.id,
+          name: profName,
+          jobTitle: profJob,
+          organization: profOrg,
+          bio: profBio,
+          avatarColor: profColor,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setProfStatus({ type: 'error', msg: data.error || 'Gagal menyimpan profil.' });
+      } else {
+        setUser(data.user);
+        localStorage.setItem('nalar_user', JSON.stringify(data.user));
+        setProfStatus({ type: 'success', msg: 'Profil dan konteks personalisasi AI berhasil diperbarui.' });
+      }
+    } catch {
+      setProfStatus({ type: 'error', msg: 'Terjadi kesalahan jaringan.' });
+    } finally {
+      setProfSaving(false);
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    setPassSaving(true);
+    setPassStatus(null);
+    try {
+      const res = await fetch('/api/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'change_password',
+          userId: user.id,
+          currentPassword: currPass,
+          newPassword: newPass,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setPassStatus({ type: 'error', msg: data.error || 'Gagal mengubah kata sandi.' });
+      } else {
+        setCurrPass('');
+        setNewPass('');
+        setPassStatus({ type: 'success', msg: data.message || 'Kata sandi berhasil diperbarui.' });
+      }
+    } catch {
+      setPassStatus({ type: 'error', msg: 'Gagal menghubungi server.' });
+    } finally {
+      setPassSaving(false);
+    }
+  };
+
+  const handleToggleUserPlan = async (targetUser: any) => {
+    const nextPlan = targetUser.plan === 'pro' ? 'free' : 'pro';
+    const nextQuota = nextPlan === 'pro' ? 9999 : 30;
+    await fetch('/api/admin', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        targetUserId: targetUser.id,
+        plan: nextPlan,
+        dailyQuota: nextQuota,
+      }),
+    });
+    fetchAdminData();
+  };
+
+  const handleExportData = () => {
+    if (!user) return;
+    const exportPayload = {
+      exportedAt: new Date().toISOString(),
+      profile: user,
+      totalThreads: chatList.length,
+      threads: chatList,
+    };
+    const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `nalar-data-${user.name.toLowerCase().replace(/\s+/g, '-')}.json`;
+    a.click();
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!user) return;
+    const confirmed = window.confirm(
+      'PERINGATAN: Menghapus akun akan menghapus seluruh riwayat diskusi dan profil Anda secara permanen dari database PostgreSQL. Lanjutkan?'
+    );
+    if (!confirmed) return;
+
+    await fetch(`/api/profile?userId=${user.id}`, { method: 'DELETE' });
+    localStorage.removeItem('nalar_user');
+    setUser(null);
+  };
+
   const loadChat = async (id: string) => {
     setActiveView('chat');
     setActiveChatId(id);
     setChatError(null);
-    const res = await fetch(`/api/chats?id=${id}`);
+    const res = await fetch(`/api/chats?id=${id}&userId=${user?.id || ''}`);
     if (res.ok) {
       const data = await res.json();
       if (data) {
@@ -298,14 +504,14 @@ export default function NalarSaaSWorkspace() {
     await fetch('/api/chats', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chatId: chat.id, isPinned: !chat.isPinned }),
+      body: JSON.stringify({ chatId: chat.id, isPinned: !chat.isPinned, userId: user?.id }),
     });
     fetchChatList(user?.id);
   };
 
   const deleteChat = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    await fetch(`/api/chats?id=${id}`, { method: 'DELETE' });
+    await fetch(`/api/chats?id=${id}&userId=${user?.id || ''}`, { method: 'DELETE' });
     if (activeChatId === id) startNewChat();
     fetchChatList(user?.id);
   };
@@ -330,7 +536,7 @@ export default function NalarSaaSWorkspace() {
     const reader = new FileReader();
     reader.onload = (ev) => {
       const content = ev.target?.result as string;
-      setAttachmentContent(content.slice(0, 6000));
+      setAttachmentContent(content.slice(0, 8000));
     };
     reader.readAsText(file);
   };
@@ -375,10 +581,8 @@ export default function NalarSaaSWorkspace() {
   );
   const pinnedChats = filteredChats.filter((c) => c.isPinned);
   const recentChats = filteredChats.filter((c) => !c.isPinned);
+  const avatarBadgeClass = AVATAR_COLORS[user?.avatarColor || 'zinc'] || AVATAR_COLORS.zinc;
 
-  // ============================================================================
-  // AUTH SCREEN: ENTERPRISE SAAS LOGIN (Vercel / Linear Style)
-  // ============================================================================
   if (!user) {
     return (
       <div
@@ -386,9 +590,8 @@ export default function NalarSaaSWorkspace() {
           darkMode ? 'bg-zinc-950 text-zinc-100' : 'bg-zinc-50 text-zinc-900'
         }`}
       >
-        <div className="w-full max-w-[400px]">
-          {/* Brand Header */}
-          <div className="flex flex-col items-center text-center mb-8">
+        <div className="w-full max-w-[420px]">
+          <div className="flex flex-col items-center text-center mb-7">
             <div
               className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-lg mb-4 shadow-sm border ${
                 darkMode
@@ -399,20 +602,18 @@ export default function NalarSaaSWorkspace() {
               N
             </div>
             <h1 className="text-xl font-semibold tracking-tight">
-              {authMode === 'login' ? 'Masuk ke Nalar Workspace' : 'Buat Akun Nalar Baru'}
+              {authMode === 'login' ? 'Masuk ke Nalar Workspace' : 'Registrasi Profil Nalar'}
             </h1>
             <p className={`text-xs mt-1.5 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-              Platform kolaborasi & analitik AI untuk tim profesional
+              Dilindungi enkripsi PBKDF2-SHA512 & isolasi data tingkat baris
             </p>
           </div>
 
-          {/* Auth Card */}
           <div
             className={`rounded-xl border p-6 shadow-sm ${
               darkMode ? 'bg-zinc-900/60 border-zinc-800/80' : 'bg-white border-zinc-200/90'
             }`}
           >
-            {/* Segmented Tab */}
             <div
               className={`grid grid-cols-2 p-1 rounded-lg mb-5 border text-xs font-medium ${
                 darkMode ? 'bg-zinc-950 border-zinc-800' : 'bg-zinc-100 border-zinc-200/70'
@@ -465,39 +666,88 @@ export default function NalarSaaSWorkspace() {
 
             <form onSubmit={handleAuthSubmit} className="space-y-3.5">
               {authMode === 'signup' && (
-                <div>
-                  <label
-                    htmlFor="name-input"
-                    className={`block text-xs font-medium mb-1.5 ${
-                      darkMode ? 'text-zinc-300' : 'text-zinc-700'
-                    }`}
-                  >
-                    Nama Lengkap
-                  </label>
-                  <div className="relative">
-                    <UserIcon
-                      size={15}
-                      className={`absolute left-3 top-2.5 ${
-                        darkMode ? 'text-zinc-500' : 'text-zinc-400'
+                <>
+                  <div>
+                    <label
+                      htmlFor="name-input"
+                      className={`block text-xs font-medium mb-1.5 ${
+                        darkMode ? 'text-zinc-300' : 'text-zinc-700'
                       }`}
-                    />
-                    <input
-                      id="name-input"
-                      name="name"
-                      type="text"
-                      autoComplete="name"
-                      required
-                      value={authName}
-                      onChange={(e) => setAuthName(e.target.value)}
-                      placeholder="Nama Anda"
-                      className={`w-full rounded-lg pl-9 pr-3 py-2 text-sm border focus:outline-none transition ${
-                        darkMode
-                          ? 'bg-zinc-950 border-zinc-800 text-zinc-100 focus:border-zinc-600 placeholder-zinc-600'
-                          : 'bg-white border-zinc-300 text-zinc-900 focus:border-zinc-900 placeholder-zinc-400'
-                      }`}
-                    />
+                    >
+                      Nama Lengkap
+                    </label>
+                    <div className="relative">
+                      <UserIcon
+                        size={15}
+                        className={`absolute left-3 top-2.5 ${
+                          darkMode ? 'text-zinc-500' : 'text-zinc-400'
+                        }`}
+                      />
+                      <input
+                        id="name-input"
+                        name="name"
+                        type="text"
+                        autoComplete="name"
+                        required
+                        value={authName}
+                        onChange={(e) => setAuthName(e.target.value)}
+                        placeholder="Nama Lengkap Anda"
+                        className={`w-full rounded-lg pl-9 pr-3 py-2 text-sm border focus:outline-none transition ${
+                          darkMode
+                            ? 'bg-zinc-950 border-zinc-800 text-zinc-100 focus:border-zinc-600 placeholder-zinc-600'
+                            : 'bg-white border-zinc-300 text-zinc-900 focus:border-zinc-900 placeholder-zinc-400'
+                        }`}
+                      />
+                    </div>
                   </div>
-                </div>
+
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div>
+                      <label
+                        htmlFor="job-input"
+                        className={`block text-xs font-medium mb-1.5 ${
+                          darkMode ? 'text-zinc-300' : 'text-zinc-700'
+                        }`}
+                      >
+                        Peran / Jabatan
+                      </label>
+                      <input
+                        id="job-input"
+                        type="text"
+                        value={authJobTitle}
+                        onChange={(e) => setAuthJobTitle(e.target.value)}
+                        placeholder="Software Engineer"
+                        className={`w-full rounded-lg px-3 py-2 text-xs border focus:outline-none transition ${
+                          darkMode
+                            ? 'bg-zinc-950 border-zinc-800 text-zinc-100 focus:border-zinc-600 placeholder-zinc-600'
+                            : 'bg-white border-zinc-300 text-zinc-900 focus:border-zinc-900 placeholder-zinc-400'
+                        }`}
+                      />
+                    </div>
+                    <div>
+                      <label
+                        htmlFor="org-input"
+                        className={`block text-xs font-medium mb-1.5 ${
+                          darkMode ? 'text-zinc-300' : 'text-zinc-700'
+                        }`}
+                      >
+                        Organisasi / Tim
+                      </label>
+                      <input
+                        id="org-input"
+                        type="text"
+                        value={authOrg}
+                        onChange={(e) => setAuthOrg(e.target.value)}
+                        placeholder="Nama Perusahaan"
+                        className={`w-full rounded-lg px-3 py-2 text-xs border focus:outline-none transition ${
+                          darkMode
+                            ? 'bg-zinc-950 border-zinc-800 text-zinc-100 focus:border-zinc-600 placeholder-zinc-600'
+                            : 'bg-white border-zinc-300 text-zinc-900 focus:border-zinc-900 placeholder-zinc-400'
+                        }`}
+                      />
+                    </div>
+                  </div>
+                </>
               )}
 
               <div>
@@ -541,7 +791,7 @@ export default function NalarSaaSWorkspace() {
                     darkMode ? 'text-zinc-300' : 'text-zinc-700'
                   }`}
                 >
-                  Kata Sandi
+                  Kata Sandi (Min. 6 Karakter)
                 </label>
                 <div className="relative">
                   <Lock
@@ -578,16 +828,19 @@ export default function NalarSaaSWorkspace() {
                 }`}
               >
                 {authLoading
-                  ? 'Memverifikasi...'
+                  ? 'Memverifikasi Kredensial...'
                   : authMode === 'login'
                   ? 'Masuk ke Workspace'
-                  : 'Buat Akun Sekarang'}
+                  : 'Buat Profil & Masuk'}
               </button>
             </form>
           </div>
 
           <div className="mt-6 flex items-center justify-between text-xs text-zinc-500">
-            <span>© 2026 NALAR Systems</span>
+            <span className="flex items-center gap-1.5">
+              <ShieldCheck size={14} className="text-emerald-500" />
+              <span>HttpOnly Session & TLS Encrypted</span>
+            </span>
             <button onClick={toggleTheme} className="hover:underline flex items-center gap-1.5">
               {darkMode ? <Sun size={13} /> : <Moon size={13} />}
               <span>{darkMode ? 'Mode Terang' : 'Mode Gelap'}</span>
@@ -598,16 +851,12 @@ export default function NalarSaaSWorkspace() {
     );
   }
 
-  // ============================================================================
-  // MAIN WORKSPACE: PRODUCTION SAAS DASHBOARD (Linear / Raycast / Vercel Aesthetic)
-  // ============================================================================
   return (
     <div
       className={`flex h-screen font-sans overflow-hidden transition-colors ${
         darkMode ? 'bg-zinc-950 text-zinc-100' : 'bg-white text-zinc-900'
       }`}
     >
-      {/* SIDEBAR NAVIGATION */}
       <aside
         className={`${
           sidebarOpen ? 'w-64' : 'w-0 border-r-0'
@@ -615,7 +864,6 @@ export default function NalarSaaSWorkspace() {
           darkMode ? 'bg-zinc-900/50 border-zinc-800/80' : 'bg-zinc-50/90 border-zinc-200/80'
         }`}
       >
-        {/* Top Workspace Brand & New Thread */}
         <div className="p-3 space-y-3">
           <div className="flex items-center justify-between px-1.5 py-1">
             <div className="flex items-center gap-2.5">
@@ -628,13 +876,15 @@ export default function NalarSaaSWorkspace() {
               </div>
               <span className="font-semibold text-sm tracking-tight">NALAR</span>
               <span
-                className={`text-[10px] font-medium px-1.5 py-0.5 rounded border ${
-                  darkMode
+                className={`text-[10px] font-medium px-1.5 py-0.5 rounded border uppercase ${
+                  user.plan === 'pro'
+                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500'
+                    : darkMode
                     ? 'bg-zinc-800/80 border-zinc-700 text-zinc-300'
                     : 'bg-zinc-200/70 border-zinc-300 text-zinc-700'
                 }`}
               >
-                PRO
+                {user.plan === 'pro' ? 'PRO' : 'STARTER'}
               </span>
             </div>
             <button
@@ -650,7 +900,6 @@ export default function NalarSaaSWorkspace() {
             </button>
           </div>
 
-          {/* Tombol New Thread SaaS */}
           <button
             onClick={startNewChat}
             className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium border transition shadow-sm ${
@@ -672,7 +921,6 @@ export default function NalarSaaSWorkspace() {
             </kbd>
           </button>
 
-          {/* Search Filter */}
           <div className="relative">
             <Search
               size={13}
@@ -694,9 +942,7 @@ export default function NalarSaaSWorkspace() {
           </div>
         </div>
 
-        {/* Center Scrollable Area */}
         <div className="flex-1 overflow-y-auto px-3 space-y-5 my-1">
-          {/* Workspace Modules */}
           <div>
             <div className="flex items-center justify-between px-1.5 mb-1.5">
               <span
@@ -746,7 +992,6 @@ export default function NalarSaaSWorkspace() {
             </div>
           </div>
 
-          {/* Pinned Threads */}
           {pinnedChats.length > 0 && (
             <div>
               <p
@@ -778,7 +1023,7 @@ export default function NalarSaaSWorkspace() {
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
                       <button
                         onClick={(e) => togglePinChat(chat, e)}
-                        className="p-0.5 hover: opacity-80"
+                        className="p-0.5 hover:opacity-80"
                         title="Lepas sematan"
                       >
                         <Pin size={11} />
@@ -797,7 +1042,6 @@ export default function NalarSaaSWorkspace() {
             </div>
           )}
 
-          {/* Recent Threads */}
           <div>
             <p
               className={`text-[11px] font-medium px-1.5 mb-1.5 ${
@@ -850,12 +1094,43 @@ export default function NalarSaaSWorkspace() {
           </div>
         </div>
 
-        {/* Bottom Navigation & User Bar */}
         <div
           className={`p-3 border-t space-y-1 ${
             darkMode ? 'border-zinc-800/80' : 'border-zinc-200/80'
           }`}
         >
+          <button
+            onClick={() => setActiveView('profile')}
+            className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs transition ${
+              activeView === 'profile'
+                ? darkMode
+                  ? 'bg-zinc-800 text-zinc-100 font-medium'
+                  : 'bg-zinc-200/80 text-zinc-900 font-medium'
+                : darkMode
+                ? 'text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200'
+                : 'text-zinc-600 hover:bg-zinc-200/50 hover:text-zinc-900'
+            }`}
+          >
+            <UserIcon size={15} />
+            <span>Profil & Keamanan Akun</span>
+          </button>
+
+          <button
+            onClick={() => setActiveView('admin')}
+            className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs transition ${
+              activeView === 'admin'
+                ? darkMode
+                  ? 'bg-zinc-800 text-zinc-100 font-medium'
+                  : 'bg-zinc-200/80 text-zinc-900 font-medium'
+                : darkMode
+                ? 'text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200'
+                : 'text-zinc-600 hover:bg-zinc-200/50 hover:text-zinc-900'
+            }`}
+          >
+            <Users size={15} />
+            <span>Konsol Admin & Kuota</span>
+          </button>
+
           <button
             onClick={() => setActiveView('modules')}
             className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs transition ${
@@ -888,45 +1163,32 @@ export default function NalarSaaSWorkspace() {
             <span>Log Aktivitas</span>
           </button>
 
-          <button
-            onClick={() => setActiveView('settings')}
-            className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs transition ${
-              activeView === 'settings'
-                ? darkMode
-                  ? 'bg-zinc-800 text-zinc-100 font-medium'
-                  : 'bg-zinc-200/80 text-zinc-900 font-medium'
-                : darkMode
-                ? 'text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200'
-                : 'text-zinc-600 hover:bg-zinc-200/50 hover:text-zinc-900'
-            }`}
-          >
-            <Settings size={15} />
-            <span>Preferensi Sistem</span>
-          </button>
-
-          {/* Compact User Profile Footer */}
           <div
-            className={`mt-2 pt-2 border-t flex items-center justify-between px-1.5 ${
-              darkMode ? 'border-zinc-800/60' : 'border-zinc-200/70'
+            onClick={() => setActiveView('profile')}
+            className={`mt-2 pt-2 border-t flex items-center justify-between px-1.5 py-1 rounded-lg cursor-pointer transition ${
+              darkMode
+                ? 'border-zinc-800/60 hover:bg-zinc-800/40'
+                : 'border-zinc-200/70 hover:bg-zinc-200/50'
             }`}
           >
-            <div className="flex items-center gap-2 truncate">
+            <div className="flex items-center gap-2.5 truncate">
               <div
-                className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 ${
-                  darkMode ? 'bg-zinc-800 text-zinc-200' : 'bg-zinc-200 text-zinc-800'
-                }`}
+                className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 ${avatarBadgeClass}`}
               >
                 {user.name.charAt(0).toUpperCase()}
               </div>
               <div className="truncate">
                 <p className="text-xs font-medium truncate">{user.name}</p>
-                <p className={`text-[10px] truncate ${darkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>
-                  {user.email}
+                <p className={`text-[10px] truncate ${darkMode ? 'text-zinc-500' : 'text-zinc-500'}`}>
+                  {user.jobTitle || 'Professional'} • {user.organization || 'Workspace'}
                 </p>
               </div>
             </div>
             <button
-              onClick={handleLogout}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleLogout();
+              }}
               title="Keluar"
               className={`p-1.5 rounded-md transition ${
                 darkMode
@@ -940,9 +1202,7 @@ export default function NalarSaaSWorkspace() {
         </div>
       </aside>
 
-      {/* MAIN CONTENT AREA */}
       <main className="flex-1 flex flex-col h-full relative overflow-hidden">
-        {/* CRISP SAAS TOP HEADER BAR */}
         <header
           className={`h-13 py-2.5 px-5 border-b flex items-center justify-between shrink-0 z-20 ${
             darkMode ? 'bg-zinc-950/80 border-zinc-800/80' : 'bg-white/80 border-zinc-200/80'
@@ -963,7 +1223,6 @@ export default function NalarSaaSWorkspace() {
               </button>
             )}
 
-            {/* Breadcrumb & Model Selector */}
             <div className="flex items-center gap-2 text-xs">
               <span className={darkMode ? 'text-zinc-400' : 'text-zinc-500'}>
                 {activeModule.name}
@@ -1052,11 +1311,10 @@ export default function NalarSaaSWorkspace() {
             </div>
           </div>
 
-          {/* Right Action Controls */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5 relative">
             <button
               onClick={toggleTheme}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs transition ${
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border text-xs transition ${
                 darkMode
                   ? 'bg-zinc-900 border-zinc-800 hover:bg-zinc-800 text-zinc-300'
                   : 'bg-white border-zinc-200 hover:bg-zinc-50 text-zinc-700'
@@ -1066,10 +1324,573 @@ export default function NalarSaaSWorkspace() {
               {darkMode ? <Sun size={13} /> : <Moon size={13} />}
               <span className="hidden sm:inline">{darkMode ? 'Light' : 'Dark'}</span>
             </button>
+
+            <button
+              onClick={() => setProfileMenuOpen(!profileMenuOpen)}
+              className={`flex items-center gap-2 pl-1.5 pr-2.5 py-1 rounded-full border text-xs transition ${
+                darkMode
+                  ? 'bg-zinc-900 border-zinc-800 hover:border-zinc-700 text-zinc-200'
+                  : 'bg-zinc-50 border-zinc-200 hover:border-zinc-300 text-zinc-800'
+              }`}
+            >
+              <div
+                className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-semibold ${avatarBadgeClass}`}
+              >
+                {user.name.charAt(0).toUpperCase()}
+              </div>
+              <span className="font-medium hidden sm:inline max-w-[110px] truncate">
+                {user.name}
+              </span>
+              <ChevronDown size={12} className="opacity-60" />
+            </button>
+
+            {profileMenuOpen && (
+              <div
+                className={`absolute right-0 top-11 w-64 rounded-xl p-2 shadow-xl border z-50 ${
+                  darkMode ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-zinc-200'
+                }`}
+              >
+                <div
+                  className={`px-3 py-2.5 border-b mb-1 ${
+                    darkMode ? 'border-zinc-800' : 'border-zinc-100'
+                  }`}
+                >
+                  <p className="text-xs font-semibold truncate">{user.name}</p>
+                  <p className="text-[11px] text-zinc-500 truncate">{user.email}</p>
+                  <div className="mt-1.5 flex items-center gap-1.5 text-[10px] text-emerald-500 font-medium">
+                    <BadgeCheck size={12} />
+                    <span>{user.jobTitle || 'Professional'} • {user.organization || 'Workspace'}</span>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => {
+                    setActiveView('profile');
+                    setProfileMenuOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition ${
+                    darkMode ? 'hover:bg-zinc-800 text-zinc-200' : 'hover:bg-zinc-100 text-zinc-800'
+                  }`}
+                >
+                  <UserIcon size={14} />
+                  <span>Profil & Keamanan Akun</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setActiveView('admin');
+                    setProfileMenuOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition ${
+                    darkMode ? 'hover:bg-zinc-800 text-zinc-200' : 'hover:bg-zinc-100 text-zinc-800'
+                  }`}
+                >
+                  <Users size={14} />
+                  <span>Konsol Admin & Kuota</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setActiveView('logs');
+                    setProfileMenuOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition ${
+                    darkMode ? 'hover:bg-zinc-800 text-zinc-200' : 'hover:bg-zinc-100 text-zinc-800'
+                  }`}
+                >
+                  <History size={14} />
+                  <span>Log Aktivitas ({chatList.length})</span>
+                </button>
+
+                <div className={`my-1 border-t ${darkMode ? 'border-zinc-800' : 'border-zinc-100'}`} />
+
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-red-500 hover:bg-red-500/10 transition"
+                >
+                  <LogOut size={14} />
+                  <span>Keluar dari Sesi</span>
+                </button>
+              </div>
+            )}
           </div>
         </header>
 
-        {/* VIEW 1: WORKSPACE MODULES DIRECTORY */}
+        {/* VIEW 1: PROFIL PENGGUNA & KEAMANAN */}
+        {activeView === 'profile' && (
+          <div className="flex-1 overflow-y-auto px-6 md:px-16 py-8">
+            <div className="max-w-4xl mx-auto space-y-6">
+              <div className="flex items-center justify-between pb-4 border-b border-zinc-500/15">
+                <div>
+                  <h2 className="text-lg font-semibold tracking-tight">Profil Pengguna & Keamanan Data</h2>
+                  <p className={`text-xs mt-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                    Kelola identitas profesional, konteks personalisasi AI, kata sandi, dan privasi data Anda.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setActiveView('chat')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${
+                    darkMode
+                      ? 'bg-zinc-900 border-zinc-800 hover:bg-zinc-800 text-zinc-200'
+                      : 'bg-white border-zinc-200 hover:bg-zinc-50 text-zinc-800'
+                  }`}
+                >
+                  Kembali ke Workspace
+                </button>
+              </div>
+
+              <div
+                className={`p-5 rounded-xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${
+                  darkMode ? 'bg-zinc-900/40 border-zinc-800' : 'bg-zinc-50/70 border-zinc-200'
+                }`}
+              >
+                <div className="flex items-center gap-4">
+                  <div
+                    className={`w-14 h-14 rounded-2xl flex items-center justify-center text-xl font-bold shadow-sm ${avatarBadgeClass}`}
+                  >
+                    {user.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base font-semibold">{user.name}</h3>
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                        <ShieldCheck size={11} /> Terverifikasi
+                      </span>
+                    </div>
+                    <p className={`text-xs mt-0.5 ${darkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>
+                      {user.jobTitle || 'Professional'} di {user.organization || 'Personal Workspace'}
+                    </p>
+                    <p className="text-[11px] text-zinc-500 mt-0.5">{user.email}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleExportData}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition ${
+                      darkMode
+                        ? 'bg-zinc-900 border-zinc-800 hover:bg-zinc-800 text-zinc-200'
+                        : 'bg-white border-zinc-300 hover:bg-zinc-50 text-zinc-800'
+                    }`}
+                  >
+                    <Download size={13} />
+                    <span>Ekspor Data (JSON)</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <form
+                  onSubmit={handleSaveProfile}
+                  className={`md:col-span-2 p-5 rounded-xl border space-y-4 ${
+                    darkMode ? 'bg-zinc-900/40 border-zinc-800' : 'bg-white border-zinc-200'
+                  }`}
+                >
+                  <div className="border-b pb-3 border-zinc-500/15">
+                    <h4 className="text-sm font-semibold">Identitas & Personalisasi NALAR</h4>
+                    <p className="text-[11px] text-zinc-500 mt-0.5">
+                      Informasi ini otomatis diselaraskan agar NALAR memberikan jawaban yang relevan dengan profesi Anda.
+                    </p>
+                  </div>
+
+                  {profStatus && (
+                    <div
+                      className={`p-3 rounded-lg text-xs flex items-center gap-2 border ${
+                        profStatus.type === 'success'
+                          ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500'
+                          : 'bg-red-500/10 border-red-500/20 text-red-500'
+                      }`}
+                    >
+                      <CheckCircle2 size={14} className="shrink-0" />
+                      <span>{profStatus.msg}</span>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <div>
+                      <label className="block text-xs font-medium mb-1">Nama Lengkap</label>
+                      <input
+                        type="text"
+                        required
+                        value={profName}
+                        onChange={(e) => setProfName(e.target.value)}
+                        className={`w-full rounded-lg px-3 py-2 text-xs border focus:outline-none ${
+                          darkMode
+                            ? 'bg-zinc-950 border-zinc-800 text-zinc-100 focus:border-zinc-600'
+                            : 'bg-white border-zinc-300 text-zinc-900 focus:border-zinc-900'
+                        }`}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1">Alamat Email (Terkunci)</label>
+                      <input
+                        type="email"
+                        disabled
+                        value={user.email}
+                        className={`w-full rounded-lg px-3 py-2 text-xs border opacity-60 cursor-not-allowed ${
+                          darkMode
+                            ? 'bg-zinc-950 border-zinc-800 text-zinc-400'
+                            : 'bg-zinc-100 border-zinc-200 text-zinc-500'
+                        }`}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <div>
+                      <label className="block text-xs font-medium mb-1">Jabatan / Peran Spesialis</label>
+                      <div className="relative">
+                        <Briefcase size={13} className="absolute left-3 top-2.5 text-zinc-500" />
+                        <input
+                          type="text"
+                          value={profJob}
+                          onChange={(e) => setProfJob(e.target.value)}
+                          placeholder="Contoh: Backend Engineer / CEO"
+                          className={`w-full rounded-lg pl-8 pr-3 py-2 text-xs border focus:outline-none ${
+                            darkMode
+                              ? 'bg-zinc-950 border-zinc-800 text-zinc-100 focus:border-zinc-600'
+                              : 'bg-white border-zinc-300 text-zinc-900 focus:border-zinc-900'
+                          }`}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1">Organisasi / Perusahaan</label>
+                      <div className="relative">
+                        <Building2 size={13} className="absolute left-3 top-2.5 text-zinc-500" />
+                        <input
+                          type="text"
+                          value={profOrg}
+                          onChange={(e) => setProfOrg(e.target.value)}
+                          placeholder="Contoh: PT Nalar Teknologi"
+                          className={`w-full rounded-lg pl-8 pr-3 py-2 text-xs border focus:outline-none ${
+                            darkMode
+                              ? 'bg-zinc-950 border-zinc-800 text-zinc-100 focus:border-zinc-600'
+                              : 'bg-white border-zinc-300 text-zinc-900 focus:border-zinc-900'
+                          }`}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium mb-1">
+                      Instruksi Personalisasi AI (Bio & Preferensi Jawaban)
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={profBio}
+                      onChange={(e) => setProfBio(e.target.value)}
+                      placeholder="Contoh: Saya menggunakan TypeScript, Next.js, dan PostgreSQL. Berikan jawaban yang ringkas, langsung ke kode, dan gunakan Bahasa Indonesia formal."
+                      className={`w-full rounded-lg p-3 text-xs border focus:outline-none ${
+                        darkMode
+                          ? 'bg-zinc-950 border-zinc-800 text-zinc-100 focus:border-zinc-600 placeholder-zinc-600'
+                          : 'bg-white border-zinc-300 text-zinc-900 focus:border-zinc-900 placeholder-zinc-400'
+                      }`}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium mb-1.5">Warna Identitas Avatar</label>
+                    <div className="flex items-center gap-2">
+                      {Object.keys(AVATAR_COLORS).map((colorKey) => (
+                        <button
+                          key={colorKey}
+                          type="button"
+                          onClick={() => setProfColor(colorKey)}
+                          className={`px-3 py-1 rounded-md text-xs capitalize border transition ${
+                            profColor === colorKey
+                              ? darkMode
+                                ? 'border-white bg-zinc-800 font-semibold'
+                                : 'border-zinc-900 bg-zinc-100 font-semibold'
+                              : 'border-transparent opacity-60 hover:opacity-100'
+                          }`}
+                        >
+                          {colorKey}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="pt-2 flex justify-end">
+                    <button
+                      type="submit"
+                      disabled={profSaving}
+                      className={`px-4 py-2 rounded-lg text-xs font-medium transition ${
+                        darkMode
+                          ? 'bg-zinc-100 hover:bg-white text-zinc-950'
+                          : 'bg-zinc-900 hover:bg-zinc-800 text-white'
+                      }`}
+                    >
+                      {profSaving ? 'Menyimpan...' : 'Simpan Perubahan Profil'}
+                    </button>
+                  </div>
+                </form>
+
+                <div className="space-y-6">
+                  <form
+                    onSubmit={handleChangePassword}
+                    className={`p-5 rounded-xl border space-y-3.5 ${
+                      darkMode ? 'bg-zinc-900/40 border-zinc-800' : 'bg-white border-zinc-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 border-b pb-2.5 border-zinc-500/15">
+                      <KeyRound size={15} />
+                      <h4 className="text-sm font-semibold">Ubah Kata Sandi</h4>
+                    </div>
+
+                    {passStatus && (
+                      <div
+                        className={`p-2.5 rounded-lg text-[11px] border ${
+                          passStatus.type === 'success'
+                            ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500'
+                            : 'bg-red-500/10 border-red-500/20 text-red-500'
+                        }`}
+                      >
+                        {passStatus.msg}
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="block text-xs font-medium mb-1">Kata Sandi Saat Ini</label>
+                      <input
+                        type="password"
+                        required
+                        autoComplete="current-password"
+                        value={currPass}
+                        onChange={(e) => setCurrPass(e.target.value)}
+                        placeholder="••••••••"
+                        className={`w-full rounded-lg px-3 py-2 text-xs border focus:outline-none ${
+                          darkMode
+                            ? 'bg-zinc-950 border-zinc-800 text-zinc-100'
+                            : 'bg-white border-zinc-300 text-zinc-900'
+                        }`}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium mb-1">Kata Sandi Baru</label>
+                      <input
+                        type="password"
+                        required
+                        autoComplete="new-password"
+                        value={newPass}
+                        onChange={(e) => setNewPass(e.target.value)}
+                        placeholder="Min. 6 karakter"
+                        className={`w-full rounded-lg px-3 py-2 text-xs border focus:outline-none ${
+                          darkMode
+                            ? 'bg-zinc-950 border-zinc-800 text-zinc-100'
+                            : 'bg-white border-zinc-300 text-zinc-900'
+                        }`}
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={passSaving}
+                      className={`w-full py-2 rounded-lg text-xs font-medium border transition ${
+                        darkMode
+                          ? 'bg-zinc-800 hover:bg-zinc-700 border-zinc-700 text-zinc-100'
+                          : 'bg-zinc-100 hover:bg-zinc-200 border-zinc-300 text-zinc-900'
+                      }`}
+                    >
+                      {passSaving ? 'Memperbarui...' : 'Perbarui Kata Sandi'}
+                    </button>
+                  </form>
+
+                  <div
+                    className={`p-5 rounded-xl border space-y-3 ${
+                      darkMode ? 'bg-zinc-900/40 border-zinc-800' : 'bg-white border-zinc-200'
+                    }`}
+                  >
+                    <h4 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                      Standar Keamanan Aktif
+                    </h4>
+                    <ul className="space-y-2 text-xs">
+                      <li className="flex items-start gap-2">
+                        <ShieldCheck size={14} className="text-emerald-500 shrink-0 mt-0.5" />
+                        <span>
+                          <strong>PBKDF2-SHA512:</strong> 10.000 iterasi kriptografi dengan salt unik per pengguna.
+                        </span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <ShieldCheck size={14} className="text-emerald-500 shrink-0 mt-0.5" />
+                        <span>
+                          <strong>HttpOnly Signed Cookie:</strong> Sesi login tahan terhadap serangan XSS.
+                        </span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <ShieldCheck size={14} className="text-emerald-500 shrink-0 mt-0.5" />
+                        <span>
+                          <strong>Row-Level Isolation:</strong> Riwayat diskusi terisolasi penuh per ID pengguna.
+                        </span>
+                      </li>
+                    </ul>
+
+                    <div className="pt-3 border-t border-zinc-500/15">
+                      <button
+                        type="button"
+                        onClick={handleDeleteAccount}
+                        className="w-full py-2 rounded-lg text-xs font-medium text-red-500 hover:bg-red-500/10 border border-red-500/20 transition"
+                      >
+                        Hapus Akun & Seluruh Data
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* VIEW 2: KONSOL ADMIN & MANAJEMEN KUOTA PENGGUNA */}
+        {activeView === 'admin' && (
+          <div className="flex-1 overflow-y-auto px-6 md:px-16 py-8">
+            <div className="max-w-4xl mx-auto space-y-6">
+              <div className="flex items-center justify-between pb-4 border-b border-zinc-500/15">
+                <div>
+                  <h2 className="text-lg font-semibold tracking-tight">Konsol Admin & Manajemen Pengguna</h2>
+                  <p className={`text-xs mt-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                    Pantau metrik sistem secara real-time dan kelola kuota atau paket langganan pengguna.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setActiveView('chat')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${
+                    darkMode
+                      ? 'bg-zinc-900 border-zinc-800 hover:bg-zinc-800 text-zinc-200'
+                      : 'bg-white border-zinc-200 hover:bg-zinc-50 text-zinc-800'
+                  }`}
+                >
+                  Kembali ke Workspace
+                </button>
+              </div>
+
+              {/* Kartu Metrik Sistem */}
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                <div
+                  className={`p-4 rounded-xl border ${
+                    darkMode ? 'bg-zinc-900/40 border-zinc-800' : 'bg-white border-zinc-200'
+                  }`}
+                >
+                  <p className="text-[11px] text-zinc-500">Total Pengguna</p>
+                  <p className="text-2xl font-bold mt-1">{adminStats?.totalUsers ?? '-'}</p>
+                </div>
+                <div
+                  className={`p-4 rounded-xl border ${
+                    darkMode ? 'bg-zinc-900/40 border-zinc-800' : 'bg-white border-zinc-200'
+                  }`}
+                >
+                  <p className="text-[11px] text-zinc-500">Total Sesi Thread</p>
+                  <p className="text-2xl font-bold mt-1">{adminStats?.totalChats ?? '-'}</p>
+                </div>
+                <div
+                  className={`p-4 rounded-xl border ${
+                    darkMode ? 'bg-zinc-900/40 border-zinc-800' : 'bg-white border-zinc-200'
+                  }`}
+                >
+                  <p className="text-[11px] text-zinc-500">Total Pesan Diproses</p>
+                  <p className="text-2xl font-bold mt-1">{adminStats?.totalMessages ?? '-'}</p>
+                </div>
+                <div
+                  className={`p-4 rounded-xl border ${
+                    darkMode ? 'bg-zinc-900/40 border-zinc-800' : 'bg-white border-zinc-200'
+                  }`}
+                >
+                  <p className="text-[11px] text-zinc-500">Status OpenRouter API</p>
+                  <div className="mt-2 flex items-center gap-1.5 text-xs font-semibold">
+                    {adminStats?.apiConfigured ? (
+                      <span className="text-emerald-500 flex items-center gap-1">
+                        <Activity size={14} /> Terhubung
+                      </span>
+                    ) : (
+                      <span className="text-amber-500 flex items-center gap-1">
+                        <AlertCircle size={14} /> Belum Disetel
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Tabel Daftar Pengguna */}
+              <div
+                className={`rounded-xl border overflow-hidden ${
+                  darkMode ? 'bg-zinc-900/40 border-zinc-800' : 'bg-white border-zinc-200'
+                }`}
+              >
+                <div className="px-4 py-3 border-b border-zinc-500/15 flex items-center justify-between">
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                    Direktori Pengguna Terdaftar
+                  </h3>
+                  <button
+                    onClick={fetchAdminData}
+                    className="text-xs text-emerald-500 hover:underline"
+                  >
+                    Segarkan Data
+                  </button>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr
+                        className={`border-b ${
+                          darkMode
+                            ? 'border-zinc-800 bg-zinc-950/50 text-zinc-400'
+                            : 'border-zinc-200 bg-zinc-50 text-zinc-500'
+                        }`}
+                      >
+                        <th className="py-2.5 px-4">Nama & Email</th>
+                        <th className="py-2.5 px-4">Organisasi</th>
+                        <th className="py-2.5 px-4">Paket</th>
+                        <th className="py-2.5 px-4">Thread</th>
+                        <th className="py-2.5 px-4 text-right">Aksi Kuota</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-500/10">
+                      {adminUsers.map((u) => (
+                        <tr key={u.id}>
+                          <td className="py-3 px-4">
+                            <p className="font-medium">{u.name}</p>
+                            <p className="text-[11px] text-zinc-500">{u.email}</p>
+                          </td>
+                          <td className="py-3 px-4 text-zinc-400">
+                            {u.jobTitle} • {u.organization}
+                          </td>
+                          <td className="py-3 px-4">
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase border ${
+                                u.plan === 'pro'
+                                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500'
+                                  : 'bg-zinc-500/10 border-zinc-500/30 text-zinc-400'
+                              }`}
+                            >
+                              {u.plan} ({u.dailyQuota}/hari)
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 font-mono">{u.chatCount}</td>
+                          <td className="py-3 px-4 text-right">
+                            <button
+                              onClick={() => handleToggleUserPlan(u)}
+                              className={`px-2.5 py-1 rounded-md text-[11px] font-medium border transition ${
+                                darkMode
+                                  ? 'bg-zinc-800 hover:bg-zinc-700 border-zinc-700 text-zinc-200'
+                                  : 'bg-zinc-100 hover:bg-zinc-200 border-zinc-300 text-zinc-800'
+                              }`}
+                            >
+                              {u.plan === 'pro' ? 'Ubah ke Free' : 'Upgrade ke PRO'}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* VIEW 3: MODULES DIRECTORY */}
         {activeView === 'modules' && (
           <div className="flex-1 overflow-y-auto px-6 md:px-16 py-8">
             <div className="max-w-4xl mx-auto">
@@ -1137,7 +1958,7 @@ export default function NalarSaaSWorkspace() {
           </div>
         )}
 
-        {/* VIEW 2: ACTIVITY LOGS */}
+        {/* VIEW 4: ACTIVITY LOGS */}
         {activeView === 'logs' && (
           <div className="flex-1 overflow-y-auto px-6 md:px-16 py-8">
             <div className="max-w-4xl mx-auto">
@@ -1145,7 +1966,7 @@ export default function NalarSaaSWorkspace() {
                 <div>
                   <h2 className="text-lg font-semibold tracking-tight">Log Aktivitas & Arsip Thread</h2>
                   <p className={`text-xs mt-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                    Seluruh sesi diskusi yang tersimpan di akun {user.email}.
+                    Seluruh sesi diskusi pribadi yang terenkripsi untuk akun {user.email}.
                   </p>
                 </div>
                 {chatList.length > 0 && (
@@ -1213,61 +2034,7 @@ export default function NalarSaaSWorkspace() {
           </div>
         )}
 
-        {/* VIEW 3: SYSTEM PREFERENCES */}
-        {activeView === 'settings' && (
-          <div className="flex-1 overflow-y-auto px-6 md:px-16 py-8">
-            <div className="max-w-3xl mx-auto space-y-6">
-              <div className="pb-4 border-b border-zinc-500/15">
-                <h2 className="text-lg font-semibold tracking-tight">Preferensi Workspace</h2>
-                <p className={`text-xs mt-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                  Pengaturan antarmuka dan parameter keamanan sistem NALAR.
-                </p>
-              </div>
-
-              <div
-                className={`rounded-xl border divide-y ${
-                  darkMode
-                    ? 'bg-zinc-900/40 border-zinc-800 divide-zinc-800'
-                    : 'bg-white border-zinc-200 divide-zinc-200'
-                }`}
-              >
-                <div className="p-4 flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-semibold">Mode Warna Antarmuka</p>
-                    <p className={`text-xs mt-0.5 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                      Gunakan palet Zinc Dark untuk ruang redup atau Crisp Alabaster untuk siang hari.
-                    </p>
-                  </div>
-                  <button
-                    onClick={toggleTheme}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${
-                      darkMode
-                        ? 'bg-zinc-800 border-zinc-700 text-zinc-100'
-                        : 'bg-zinc-100 border-zinc-300 text-zinc-900'
-                    }`}
-                  >
-                    {darkMode ? 'Zinc Dark (Aktif)' : 'Crisp Light (Aktif)'}
-                  </button>
-                </div>
-
-                <div className="p-4 flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-semibold">Otorisasi Kredensial Server</p>
-                    <p className={`text-xs mt-0.5 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                      Kunci API dikelola secara terpusat melalui Environment Variables server dan diisolasi penuh dari klien.
-                    </p>
-                  </div>
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 shrink-0">
-                    <ShieldCheck size={13} />
-                    <span>Server-Side Locked</span>
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* VIEW 4: MAIN SAAS WORKSPACE THREAD */}
+        {/* VIEW 5: MAIN CHAT WORKSPACE */}
         {activeView === 'chat' && (
           <>
             <div className="flex-1 overflow-y-auto px-4 md:px-12 py-6">
@@ -1280,10 +2047,9 @@ export default function NalarSaaSWorkspace() {
 
               {messages.length === 0 ? (
                 <div className="h-full flex flex-col justify-center max-w-3xl mx-auto py-6">
-                  {/* Clean Executive Greeting */}
                   <div className="mb-8">
                     <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md text-[11px] font-medium mb-3 border bg-emerald-500/10 text-emerald-500 border-emerald-500/20">
-                      <span>● Sistem Siap</span>
+                      <span>● Sesi Terenkripsi</span>
                       <span>•</span>
                       <span>Modul: {activeModule.name}</span>
                     </div>
@@ -1291,11 +2057,11 @@ export default function NalarSaaSWorkspace() {
                       Selamat bekerja, {user.name}.
                     </h1>
                     <p className={`text-sm mt-1 ${darkMode ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                      Pilih templat kerja di bawah atau ketik instruksi langsung untuk memulai analisis.
+                      {user.jobTitle ? `Konteks aktif: ${user.jobTitle} (${user.organization}). ` : ''}
+                      Pilih templat kerja di bawah atau ketik instruksi langsung.
                     </p>
                   </div>
 
-                  {/* Structured SaaS Action Grid */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {[
                       {
@@ -1442,7 +2208,6 @@ export default function NalarSaaSWorkspace() {
               )}
             </div>
 
-            {/* STRUCTURED SAAS COMPOSER BAR */}
             <div className="px-4 md:px-12 pb-4 pt-2">
               <div className="max-w-3xl mx-auto">
                 {attachmentName && (
@@ -1492,7 +2257,6 @@ export default function NalarSaaSWorkspace() {
                     />
                   </div>
 
-                  {/* Bottom Toolbar inside Composer */}
                   <div className="flex items-center justify-between px-2.5 py-2 border-t border-zinc-500/10">
                     <div className="flex items-center gap-1">
                       <input

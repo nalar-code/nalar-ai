@@ -12,7 +12,15 @@ model User {
   name         String
   email        String   @unique
   passwordHash String
+  role         String   @default("user") // "admin" atau "user"
+  plan         String   @default("free") // "free" atau "pro"
+  dailyQuota   Int      @default(30)
+  jobTitle     String   @default("Professional")
+  organization String   @default("Personal Workspace")
+  bio          String   @default("")
+  avatarColor  String   @default("zinc")
   createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
   chats        Chat[]
 }
 
